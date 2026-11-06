@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+实现规格 [002-tauri-migration](specs/002-tauri-migration/spec.md)，计划作为 0.2.0 发布。
+
+### 变更
+
+- 运行时由 Electron 改为 Tauri 2 + 系统 WebView2：安装包从约 120MB 降到 10MB 以下，并提供单文件免安装版
+- 只打包实际用到的 Vditor 资源
+- 页内查找只匹配编辑区中的文字（不再匹配侧边栏）
+- 所有快捷键由编辑器统一处理，新增缩放快捷键 `Ctrl+=` / `Ctrl+-` / `Ctrl+Shift+9`
+- 设置文件位置不变，0.1.0 的主题与最近文件会保留
+
+### 修复
+
+- 深色模式下代码块为白底（代码高亮主题 `native` 不存在，改为 `github-dark`）
+
 ## [0.1.0] - 2026-11-06
 
 首个版本，实现规格 [001-inkmark-mvp](specs/001-inkmark-mvp/spec.md)。

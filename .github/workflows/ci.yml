@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   check:
     runs-on: windows-latest
@@ -18,9 +21,22 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: npm run vendor
+      - name: cargo fmt / clippy / test
+        working-directory: src-tauri
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -34,11 +50,25 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
       - run: npm ci
-      - run: node node_modules/electron/install.js
-      - run: npm run dist -- --publish never
+      - run: npm run dist
+      - name: 收集产物并检查体积（宪章 VII / NFR-101）
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item (Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe).FullName "out/Inkmark-Setup-$v-x64.exe"
+          Copy-Item src-tauri/target/release/inkmark.exe "out/Inkmark-$v-x64-portable.exe"
+          $limits = @{ "Inkmark-Setup-$v-x64.exe" = 10MB; "Inkmark-$v-x64-portable.exe" = 15MB }
+          foreach ($f in Get-ChildItem out) {
+            "{0}: {1:N2} MB" -f $f.Name, ($f.Length / 1MB)
+            if ($f.Length -gt $limits[$f.Name]) { throw "$($f.Name) 超过体积上限" }
+          }
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*.exe
+          files: out/*.exe
           generate_release_notes: true

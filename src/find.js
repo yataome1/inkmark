@@ -1,5 +1,5 @@
 // 页内查找（FR-013）：用 CSS Custom Highlight API 高亮编辑区中可见文本的匹配项，不修改 DOM。
-// 替代 Electron 的 webContents.findInPage（plan.md）。
+// WebView2 在 Tauri 中没有页内查找接口，见 specs/002-tauri-migration/plan.md。
 'use strict';
 
 (function (root) {

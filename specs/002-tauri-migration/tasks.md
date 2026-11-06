@@ -31,9 +31,9 @@
 - [x] T118 [P] `export.js`：前端组装导出 HTML（内联 CSS 与 KaTeX 字体）
 
 ## 阶段 5：工程与文档
-- [ ] T119 `package.json`：移除 Electron 依赖，脚本改为 `tauri dev` / `tauri build`
-- [ ] T120 CI：Rust 工具链、`cargo fmt --check`、`cargo test`、`cargo clippy`、`tauri build`、安装包 ≤ 10MB 检查
-- [ ] T121 更新 `AGENTS.md`（目录约定、安全约束）、`CONTRIBUTING.md`、`README.md`、`CHANGELOG.md`（0.2.0）
+- [x] T119 `package.json`：移除 Electron 依赖，脚本改为 `tauri dev` / `tauri build`
+- [x] T120 CI：Rust 工具链、`cargo fmt --check`、`cargo test`、`cargo clippy`、`tauri build`、安装包 ≤ 10MB 检查
+- [x] T121 更新 `AGENTS.md`（目录约定、安全约束）、`CONTRIBUTING.md`、`README.md`、`CHANGELOG.md`（0.2.0）
 
 ## 阶段 6：验证与发布
 - [ ] T122 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo test`、`cargo clippy`

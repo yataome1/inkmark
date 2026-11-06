@@ -2,20 +2,20 @@
   "name": "inkmark",
   "productName": "Inkmark",
   "version": "0.1.0",
+  "private": true,
   "description": "A Typora-inspired local Markdown viewer & editor for Windows",
-  "main": "src/main/index.js",
   "scripts": {
-    "start": "electron .",
+    "start": "tauri dev",
     "vendor": "node scripts/copy-vditor.mjs",
     "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint --fix .",
-    "dist": "electron-builder --win --x64"
+    "dist": "tauri build"
   },
   "keywords": [
     "markdown",
     "editor",
-    "electron",
+    "tauri",
     "wysiwyg"
   ],
   "author": "yataome1 <zhangmian@outlook.com>",
@@ -27,63 +27,8 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.12.4",
-    "electron": "^45.2.3",
-    "electron-builder": "^26.18.0",
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "prettier": "^3.9.10"
-  },
-  "allowScripts": {
-    "electron-winstaller@5.4.0": true
-  },
-  "build": {
-    "appId": "io.github.yataome1.inkmark",
-    "productName": "Inkmark",
-    "files": [
-      "src/**/*",
-      "resources/**/*",
-      "build/icon.ico",
-      "package.json"
-    ],
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "icon": "build/icon.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "artifactName": "Inkmark-Setup-${version}-x64.${ext}"
-    },
-    "portable": {
-      "artifactName": "Inkmark-${version}-x64-portable.${ext}"
-    },
-    "fileAssociations": [
-      {
-        "ext": [
-          "md",
-          "markdown",
-          "mdown"
-        ],
-        "name": "Markdown",
-        "description": "Markdown Document",
-        "role": "Editor"
-      }
-    ]
   }
 }
