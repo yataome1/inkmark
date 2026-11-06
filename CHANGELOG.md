@@ -4,7 +4,9 @@
 
 ## [Unreleased]
 
-实现规格 [002-tauri-migration](specs/002-tauri-migration/spec.md)，计划作为 0.2.0 发布。
+## [0.2.0] - 2026-11-06
+
+实现规格 [002-tauri-migration](specs/002-tauri-migration/spec.md)。
 
 ### 变更
 

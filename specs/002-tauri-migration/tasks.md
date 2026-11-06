@@ -38,7 +38,7 @@
 ## 阶段 6：验证与发布
 - [x] T122 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo test`、`cargo clippy`
 - [x] T123 按 001 `checklist.md` 全部场景回归 + 002 验收场景（体积、启动时间、内存对比），记录于 `checklist.md`
-- [ ] T124 合并到 `main`，打 `v0.2.0` 标签发布
+- [x] T124 合并到 `main`，打 `v0.2.0` 标签发布
 
 ## 依赖
 阶段 1 → 阶段 2 → 阶段 3 与阶段 4（T115 依赖 T110–T113 的命令签名）→ 阶段 5 → 阶段 6。
