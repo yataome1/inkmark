@@ -1,0 +1,266 @@
+:root {
+  --bg: #ffffff;
+  --fg: #333333;
+  --muted: #8a8f98;
+  --sidebar-bg: #f6f7f9;
+  --border: #e3e5e8;
+  --hover: #e9ecf0;
+  --accent: #4a7dff;
+  --font-ui: 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+  --font-body: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e1f22;
+    --fg: #d4d6da;
+    --muted: #868a91;
+    --sidebar-bg: #191a1c;
+    --border: #2d2f33;
+    --hover: #2a2c30;
+    --accent: #6b95ff;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+}
+
+#app {
+  display: flex;
+  height: 100%;
+}
+
+/* ---------- 侧边栏 ---------- */
+#sidebar {
+  width: 260px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+}
+#app.no-sidebar #sidebar {
+  display: none;
+}
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-tabs button {
+  flex: 1;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.sidebar-tabs button.active {
+  color: var(--fg);
+  box-shadow: inset 0 -2px var(--accent);
+}
+.pane {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+  display: none;
+}
+.pane.active {
+  display: block;
+}
+.folder-name {
+  padding: 4px 14px 8px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folder-name:empty {
+  display: none;
+}
+.link-button {
+  margin: 8px 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.tree,
+.tree ul,
+.outline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tree .row,
+.outline li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+}
+.tree .row:hover,
+.outline li:hover {
+  background: var(--hover);
+}
+.tree .row.current {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tree .icon {
+  flex: none;
+  width: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+.outline li {
+  display: block;
+}
+.outline .empty,
+.tree .empty {
+  color: var(--muted);
+  cursor: default;
+}
+.outline .empty:hover {
+  background: none;
+}
+
+/* ---------- 主区域 ---------- */
+#main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+#editor {
+  flex: 1;
+  min-height: 0;
+}
+#editor.vditor {
+  border: 0;
+  border-radius: 0;
+}
+/* Typora 无工具栏；按钮仍保留在 DOM 中供命令调用 */
+#editor .vditor-toolbar {
+  display: none;
+}
+.vditor-content {
+  background: var(--bg);
+}
+.vditor-reset {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.75;
+}
+/* 正文居中、最大 860px；滚动条贴窗口右侧 */
+.vditor-ir pre.vditor-reset,
+.vditor-sv.vditor-reset {
+  padding: 40px max(48px, calc((100% - 860px) / 2)) 120px !important;
+  background: var(--bg);
+}
+
+/* 专注模式（FR-008） */
+#editor.focus-mode .vditor-ir pre.vditor-reset > *,
+#editor.focus-mode .vditor-sv.vditor-reset > * {
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+#editor.focus-mode .vditor-ir pre.vditor-reset > .im-active,
+#editor.focus-mode .vditor-sv.vditor-reset > .im-active {
+  opacity: 1;
+}
+/* 打字机模式：底部留白让最后一行也能居中 */
+#editor.typewriter-mode .vditor-ir pre.vditor-reset,
+#editor.typewriter-mode .vditor-sv.vditor-reset {
+  padding-bottom: 50vh !important;
+}
+
+/* ---------- 查找栏 ---------- */
+#findbar {
+  position: absolute;
+  top: 8px;
+  right: 24px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+#findbar[hidden] {
+  display: none;
+}
+#findbar:not(.with-replace) #replace-input,
+#findbar:not(.with-replace) #replace-all {
+  display: none;
+}
+#findbar input {
+  width: 180px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+}
+#findbar input:focus {
+  border-color: var(--accent);
+}
+#findbar button {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+#findbar button:hover {
+  background: var(--hover);
+}
+#find-count {
+  min-width: 40px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---------- 状态栏 ---------- */
+#statusbar {
+  display: flex;
+  gap: 16px;
+  padding: 3px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+#status-count {
+  margin-left: auto;
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file:; script-src 'self' file: 'unsafe-eval'; style-src 'self' file: 'unsafe-inline'; img-src * file: data: blob:; font-src 'self' file: data:; connect-src 'self' file:"
+    />
+    <title>Inkmark</title>
+    <link rel="stylesheet" href="../../node_modules/vditor/dist/index.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <nav class="sidebar-tabs">
+          <button data-tab="files">文件</button>
+          <button data-tab="outline">大纲</button>
+        </nav>
+        <section id="pane-files" class="pane">
+          <div id="folder-name" class="folder-name"></div>
+          <ul id="tree" class="tree"></ul>
+          <button id="open-folder" class="link-button">打开文件夹…</button>
+        </section>
+        <section id="pane-outline" class="pane">
+          <ul id="outline" class="outline"></ul>
+        </section>
+      </aside>
+      <main id="main">
+        <div id="findbar" hidden>
+          <input id="find-input" type="text" placeholder="查找" spellcheck="false" />
+          <span id="find-count"></span>
+          <button id="find-prev" title="上一个 (Shift+Enter)">↑</button>
+          <button id="find-next" title="下一个 (Enter)">↓</button>
+          <input id="replace-input" type="text" placeholder="替换为" spellcheck="false" />
+          <button id="replace-all">全部替换</button>
+          <button id="find-close" title="关闭 (Esc)">✕</button>
+        </div>
+        <div id="editor"></div>
+        <footer id="statusbar">
+          <span id="status-mode"></span>
+          <span id="status-flags"></span>
+          <span id="status-count"></span>
+        </footer>
+      </main>
+    </div>
+    <script src="../../node_modules/vditor/dist/index.min.js"></script>
+    <script src="text-utils.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
