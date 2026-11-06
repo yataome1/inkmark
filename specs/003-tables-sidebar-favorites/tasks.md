@@ -9,15 +9,15 @@
 - [ ] T203 [P] Rust：`menu.rs` 增加“收藏/取消收藏当前文件”“视图 → 收藏”；`platform.js` 增加 `pathInfo`
 
 ## 阶段 2：用户故事 1 —— 表格编辑 (P1)
-- [ ] T204 [US1] `src/table-utils.js`：`findTables`、`parseTable`、`formatTable`（显示宽度、转义 `|`、行内代码、前缀）+ `test/table-utils.test.js`
+- [ ] T204 [US1] `src/table-utils.js`：`parseTable`、`formatTable`（显示宽度、转义 `|`、行内代码）+ `test/table-utils.test.js`
 - [ ] T205 [US1] `table-utils.js`：增删/移动行列、对齐、调整大小、新建表格 + 测试（含 FR-207 约束）
-- [ ] T206 [US1] `src/table.js`：定位当前单元格 → 源码区间；应用变换、恢复滚动与光标、触发 onChange
+- [ ] T206 [US1] `src/table.js`：`applyTableEdit` —— 只把当前表格转为 Markdown、变换、渲染片段替换原 `<table>`、记录撤销、恢复光标、触发 onChange（不调用 `setValue`）；单元格内容往返测试（R1）
 - [ ] T207 [US1] 尺寸选择器（插入表格与调整大小共用），替换 `Ctrl+T` 的旧行为
 - [ ] T208 [US1] 表格工具条（调整大小、对齐、删除表格、更多）
 - [ ] T209 [US1] 单元格右键菜单（含置灰规则）
 - [ ] T210 [US1] 表格快捷键：`Ctrl+Enter`、`Ctrl+Shift+Backspace`、最后单元格 `Tab`
 - [ ] T211 [US1] 行/列拖动手柄与指示线（Pointer Events）
-- [ ] T212 [US1] 性能实测：1000 行文档中表格操作 < 300ms（NFR-202），不达标按 plan R1 处理
+- [ ] T212 [US1] 性能与隔离实测：约 1000 行、15 个表格、15 个 Mermaid 图的文档中，表格操作（含记录撤销）< 50ms，且其他块的 DOM 节点引用不变（NFR-202、FR-216）
 
 ## 阶段 3：用户故事 2 —— 侧边栏分割线 (P1)
 - [ ] T213 [US2] `src/resizer.js`：悬停高亮、拖动、范围限制、阈值收起/拖出展开、双击复位、键盘、持久化、窗口缩放收窄

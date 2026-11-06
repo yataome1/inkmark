@@ -4,7 +4,7 @@
 
 ## 摘要
 三项功能都以前端为主，后端只增加一个路径状态查询命令和菜单项。
-表格编辑采用“Markdown 层变换”：先定位光标所在表格对应的 Markdown 源码，用纯函数完成增删、移动、对齐、调整大小并重新排版，再 `setValue` 重新渲染，最后把光标放回目标单元格。这样所有表格操作共用一套可单元测试的逻辑，并且自然支持撤销（Vditor 的 `setValue` 会写入撤销栈）。
+表格编辑采用“Markdown 层变换 + 只替换当前表格”：从当前表格的 DOM 取出它的 Markdown，用纯函数完成增删、移动、对齐、调整大小并重新排版，再只把这个表格渲染成新的 DOM 节点替换原节点，记录一次撤销，最后把光标放回目标单元格。文档其他部分的 DOM 不被触碰（FR-216）。所有表格操作共用一套可单元测试的逻辑。
 
 ## 调研结论
 
@@ -12,7 +12,11 @@
 |---|---|---|
 | Typora 表格功能 | 工具条（调整大小网格、对齐）、右键菜单增删行列、`Ctrl+Enter` 下方插入行、`Ctrl+Shift+Backspace` 删除行、拖动行/列边框移动 | support.typora.io/Table-Editing |
 | Vditor IR 模式现有表格能力 | 有 `Tab`/`Shift+Tab`/上下键单元格导航；增删行列与对齐只有隐藏快捷键（`⌘=`、`⌘-`、`⇧⌘L` 等），与本应用的缩放、侧边栏快捷键冲突，且没有工具条 | `node_modules/vditor/dist/index.js` 中的 `fixTable` |
-| `setValue` 与撤销 | IR 模式 `setValue` 后执行 `processAfterRender(enableAddUndoStack)`，操作可 `Ctrl+Z` 撤销 | 同上，`Vditor.prototype.setValue` |
+| 整篇 `setValue` | 会重建全部 DOM 并重新渲染所有图表；在 1155 行、15 个表格、15 个 Mermaid 图的文档中同步耗时 146ms，之后图表还要异步重绘（闪烁）。**不采用** | 原型实测 |
+| 只替换单个表格 | `lute.Md2VditorIRDOM(表格 Markdown)` 生成以 `<table data-type="table">` 为根的片段，`replaceWith` 替换原表格：1ms；随后 `undo.addToUndoStack` 记录撤销（对整篇 HTML 做文本 diff，不重新渲染）：22ms；其他块的 DOM 不变 | 原型实测，同一文档 |
+| 单个表格转 Markdown | `lute.VditorIRDOM2Md(table.outerHTML)` 可单独转换一个表格（含引用块中的表格，输出不带 `> ` 前缀）；Lute 输出时已按显示宽度（中日韩计 2）对齐各列 | 原型实测 |
+| 往返一致性 | 取表格 Markdown → 原样渲染替换 → 整篇 `getValue()`：除行内代码中的 `\|` 外完全一致。行内代码中的 `\|` 在 Lute 转回 Markdown 时就已丢失转义（与本方案无关，0.2.0 保存时即会损坏，见 spec D-3） | 原型实测 |
+| Vditor 撤销机制 | `addToUndoStack` 用 diff-match-patch 记录 HTML 快照差异；`undo`/`redo` 把整篇 `innerHTML` 恢复为快照并重新处理预览块（实测 99ms）。这对所有编辑都如此，不因表格引入 | `Undo.prototype.*`；原型实测撤销、重做均精确恢复 |
 | 页面内拖放 | Tauri 在 Windows 上接管文件拖放（`dragDropEnabled`），会使 HTML5 拖放失效；关闭它又会失去拖入文件的路径 | Tauri 文档；002 已依赖其拖放事件 |
 | → 拖动排序 | 收藏排序与表格行列拖动统一用 Pointer Events 实现，不用 HTML5 拖放 | |
 | 点击跳动的原因 | IR 模式在光标进入块时给块加 `vditor-ir__node--expand` 并在渲染结果上方显示源码；离开时移除。实测 Mermaid 块高度 254px ↔ 355px，滚动位置不变，被点击内容移位约 100px | CDP 逐帧记录 + 真实鼠标点击复现 |
@@ -63,14 +67,21 @@ test/table-utils.test.js  新
 **数据模型**：`{ prefix, align: ('left'|'center'|'right'|null)[], rows: string[][] }`，`rows[0]` 为表头；`prefix` 为每行共同前缀（引用块 `> `、列表缩进）。
 
 **纯函数**（全部返回新模型或新文本）：
-- `findTables(md)` → `[{ start, end }]`（行号区间），跳过代码围栏；识别“表头行 + 分隔行”。
-- `parseTable(lines)` / `formatTable(model)`：按未转义且不在行内代码中的 `|` 拆分；排版时按显示宽度（中日韩、全角字符计 2）补齐，分隔行写对齐冒号。
+- `parseTable(md)` / `formatTable(model)`：按未转义且不在行内代码中的 `|` 拆分；`formatTable` 只需输出合法的 GFM 表格并在分隔行写对齐冒号。最终保存的源码由 Lute 序列化，Lute 已按显示宽度对齐各列（满足 US1 场景 11），不重复实现。
 - `insertRow(m, at)`、`deleteRow(m, r)`、`moveRow(m, from, to)`、`insertCol(m, at)`、`deleteCol(m, c)`、`moveCol(m, from, to)`、`setAlign(m, c, a)`、`resize(m, rows, cols)`、`createTable(rows, cols)`。
 - 约束（FR-207）：表头不可删除/移动到数据行之下以外的位置；至少 1 行数据、1 列。
 
-**定位**：当前单元格 → 所在 `<table>` 在 IR 编辑区中的序号 i、行号 r（表头为 0）、列号 c；`findTables(vditor.getValue())[i]` 即对应源码区间。若 IR 中表格数与源码中识别的表格数不一致（异常 Markdown），放弃操作并提示，不修改文档。
+**取当前表格的 Markdown**：当前单元格 → 所在 `<table>`、行号 r（表头为 0）、列号 c；用 `lute.VditorIRDOM2Md(table.outerHTML)` 只把这个表格转换为 Markdown（不读整篇文档，也就不需要在整篇源码中定位表格）。引用块或列表中的表格同样只转换 `<table>` 本身，前缀由外层块保持，不受影响。
 
-**应用**：替换源码区间 → 记录编辑区滚动位置 → `vditor.setValue(newMd)` → 恢复滚动 → 光标放到第 i 个表格的 (r', c') 单元格末尾 → 触发 `onChange()`（dirty、大纲、字数）。
+**应用**（`applyTableEdit(table, newModel, target)`）：
+1. 若 Vditor 有尚未入栈的输入（`ir.processTimeoutId` 待执行），先清除定时器并 `undo.addToUndoStack`，使“操作前”成为独立的撤销点。
+2. `formatTable(newModel)` → `lute.Md2VditorIRDOM()` → 取片段根 `<table>` → `table.replaceWith(新节点)`。
+3. 光标放到新表格 (r', c') 单元格内容末尾。
+4. `undo.addToUndoStack` 记录操作后状态（一次操作 = 一个撤销步骤）。
+5. 调用 `onChange()` 更新未保存标记、大纲与字数（这些只读 Markdown 文本，不触碰 DOM）。
+6. 删除表格时用 Lute 渲染的空段落替换 `<table>`。
+
+不调用 `setValue`，不改变滚动位置，其他块的 DOM 节点保持原样。用到的 Vditor 非公开接口：`vditor.vditor.lute.VditorIRDOM2Md`、`lute.Md2VditorIRDOM`、`undo.addToUndoStack`、`ir.processTimeoutId`，均在 3.11.2 中已验证；AGENTS.md 中“Vditor 非公开 API”清单同步补充。
 
 **界面**：
 - 工具条：绝对定位在表格上方左侧，随滚动移动；仅 IR 模式且光标在表格内时显示（`selectionchange` 驱动）。
@@ -118,9 +129,9 @@ test/table-utils.test.js  新
 ## 风险
 | 编号 | 风险 | 应对 |
 |---|---|---|
-| R1 | `setValue` 重新渲染整篇文档，长文档或含多个 Mermaid 图时有闪烁/耗时 | 实测 1000 行文档（NFR-202）；超标则改为只替换表格所在块的 DOM（`lute.Md2VditorIRDOM` 渲染片段） |
-| R2 | IR DOM 中表格序号与源码表格序号不一致（如 HTML 表格、代码块中的表格） | `findTables` 跳过代码围栏；不一致时放弃操作并提示 |
-| R3 | 光标恢复位置不准 | 按 (表格序号, 行, 列) 定位单元格并放到内容末尾；单元测试覆盖变换后的目标坐标 |
+| R1 | 单个表格片段的渲染结果与整篇渲染时的结构不同 | 原型已用含粗体、斜体、删除线、行内代码、公式、链接、图片、转义 `\|`、中文的表格及引用块中的表格验证往返一致（行内代码中的 `\|` 除外，属已有缺陷 D-3）；实现时把该用例写入自动化验收 |
+| R2 | 依赖 Vditor 非公开接口，升级时可能变化 | 版本已锁定 3.11.2；接口集中封装在 `table.js` 的一个函数中；升级 Vditor 时按 checklist 回归 |
+| R3 | 光标恢复位置不准 | 按 (行, 列) 在新表格中定位单元格并放到内容末尾；单元测试覆盖变换后的目标坐标 |
 | R4 | 工具条与 Vditor 自身的悬浮元素（如代码块语言选择）重叠 | 工具条只在表格内显示，`z-index` 低于 Vditor 弹出层 |
 | R5 | 补偿与 Vditor 自身的滚动（如 `scrollCenter`）相互抵消或抖动 | 补偿只在点击后 300ms 内、按帧进行；实测逐帧位置，若出现来回抖动则改为只在布局稳定后补偿一次 |
 | R6 | 锚点元素在展开时被 Vditor 替换 | 按点击坐标在新 DOM 中重新取元素；取不到则结束补偿，退化为 0.2.0 行为 |
