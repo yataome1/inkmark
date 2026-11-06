@@ -1,4 +1,4 @@
-<p align="center"><img src="build/icon.png" width="96" alt="Inkmark"></p>
+<p align="center"><img src="src-tauri/icons/icon.png" width="96" alt="Inkmark"></p>
 
 <h1 align="center">Inkmark</h1>
 

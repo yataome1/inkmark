@@ -128,4 +128,4 @@ inkmark/
 | R4 | `setTheme` 与 `prefers-color-scheme` | ✅ 同步 |
 | R5 | 体积 | ✅ 安装包 3.51MB |
 | R6 | Vditor 在 `http://tauri.localhost` 下运行 | ✅ 需开启 `protocol-asset` feature |
-| R7 | 内存（新增） | ❌ 不优于 0.1.0，待决定 NFR-102 |
+| R7 | 内存（新增） | ❌ 不优于 0.1.0 → NFR-102 改为不高于 0.1.0 的 120% |

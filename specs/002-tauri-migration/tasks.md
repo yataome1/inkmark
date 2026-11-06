@@ -11,11 +11,11 @@
 - [x] T104 release 构建实测体积并更新 plan（R5：安装包 3.51MB）
 
 ## 阶段 2：基础
-- [ ] T105 宪章修订 1.1.0（新增原则 VII 轻量，更新技术约束）
-- [ ] T106 [P] `scripts/copy-vditor.mjs` 按 FR-103 复制资源；`src/vendor/` 加入 `.gitignore`
-- [ ] T107 目录迁移：`src/renderer/*` → `src/`；删除 `src/main/`、`src/preload/`；图标移入 `src-tauri/icons/`
-- [ ] T108 `Cargo.toml` release 体积优化配置；`tauri.conf.json`（标识、窗口、CSP、asset 协议、withGlobalTauri、NSIS、文件关联）
-- [ ] T109 `capabilities/default.json` 最小权限
+- [x] T105 宪章修订 1.1.0（新增原则 VII 轻量，更新技术约束）
+- [x] T106 [P] `scripts/copy-vditor.mjs` 按 FR-103 复制资源；`src/vendor/` 加入 `.gitignore`
+- [x] T107 目录迁移：`src/renderer/*` → `src/`；删除 `src/main/`、`src/preload/`；图标移入 `src-tauri/icons/`
+- [x] T108 `Cargo.toml` release 体积优化配置；`tauri.conf.json`（标识、窗口、CSP、asset 协议、withGlobalTauri、NSIS、文件关联）
+- [x] T109 `capabilities/default.json` 最小权限
 
 ## 阶段 3：后端（Rust）
 - [ ] T110 [P] `fileops.rs`：`read_file`、`save_file`（原子写）、`list_dir`、`save_image`、`save_image_from_path` + `cargo test`
