@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-06
+
+实现规格 [004-table-code-pipe](specs/004-table-code-pipe/spec.md)。
+
+### 修复
+
+- 表格单元格的行内代码含转义竖线（如 `` `a \| b` ``）时，保存、切换源代码模式或复制会丢失反斜杠，导致表格被拆列；在该表格中输入文字时表格会立即错乱并丢失最后一列
+
 ## [0.2.0] - 2026-11-06
 
 实现规格 [002-tauri-migration](specs/002-tauri-migration/spec.md)。
