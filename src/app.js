@@ -654,6 +654,11 @@ api.onCloseRequested(async (e) => {
     upload: { accept: 'image/*', multiple: true, handler: uploadImages },
     input: onChange,
     after: async () => {
+      const lute = vditor.vditor.lute;
+      for (const name of ['VditorIRDOM2Md', 'SpinVditorIRDOM', 'VditorIRDOM2HTML']) {
+        const fn = lute[name].bind(lute);
+        lute[name] = (html) => fn(TextUtils.escapeTableCodePipes(html));
+      }
       applyTheme();
       updateStatus();
       const initial = await api.appReady();
