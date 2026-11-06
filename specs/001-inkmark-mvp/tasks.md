@@ -39,7 +39,7 @@
 ## 阶段 6：验证与发布
 - [x] T024 运行 `npm test`；按 spec 验收场景逐条验证，记录于 `checklist.md`
 - [ ] T025 `npm run dist` 生成 Windows x64 安装包与便携版
-- [ ] T026 git 初始化、提交、推送到 GitHub
+- [x] T026 git 初始化、提交、推送到 GitHub
 
 ## 依赖
 阶段 1 → 阶段 2 → 阶段 3 → 阶段 4/5（彼此独立）→ 阶段 6。
