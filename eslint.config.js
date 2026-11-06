@@ -2,14 +2,18 @@ const js = require('@eslint/js');
 const globals = require('globals');
 
 module.exports = [
-  { ignores: ['dist/**', 'node_modules/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'src/vendor/**', 'src-tauri/target/**', 'src-tauri/gen/**'] },
   js.configs.recommended,
   {
-    files: ['src/main/**/*.js', 'src/preload/**/*.js', 'test/**/*.js', '*.config.js'],
+    files: ['test/**/*.js', '*.config.js'],
     languageOptions: { sourceType: 'commonjs', globals: globals.node },
   },
   {
-    files: ['src/renderer/**/*.js'],
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { sourceType: 'module', globals: globals.node },
+  },
+  {
+    files: ['src/**/*.js'],
     languageOptions: { sourceType: 'script', globals: { ...globals.browser, module: 'readonly' } },
   },
   {

@@ -7,3 +7,6 @@ Thumbs.db
 .vscode/
 .idea/
 .claude/settings.local.json
+src/vendor/
+src-tauri/target/
+src-tauri/gen/

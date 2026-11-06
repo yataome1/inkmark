@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口的最小权限（宪章 V）。文件读写只经 lib.rs 中的自定义命令，不开放 fs 插件。",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:window:allow-set-theme",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-destroy",
+    "core:window:allow-close",
+    "core:webview:allow-set-webview-zoom",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "http://*" }, { "url": "https://*" }]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { countWords, parseHeadings } = require('../src/renderer/text-utils');
+const { countWords, parseHeadings } = require('../src/text-utils');
 
 test('countWords: 中文按字、英文按词', () => {
   assert.deepEqual(countWords('你好 world'), { words: 3, chars: 7 });
