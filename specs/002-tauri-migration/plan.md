@@ -12,7 +12,7 @@
 | 后端语言 | Rust stable 1.99（MSVC）—— 本机已确认可编译链接 |
 | 前端 | 原生 JS，无框架、无打包器；通过 `app.withGlobalTauri` 使用 `window.__TAURI__` |
 | Tauri 插件 | `dialog`（文件/消息对话框）、`opener`（系统浏览器打开链接）、`single-instance`（单实例） |
-| 新增 Rust 依赖 | `serde`/`serde_json`、`dirs`（设置目录）、`webview2-com`（打印为 PDF） |
+| 新增 Rust 依赖 | `serde`/`serde_json`、`webview2-com` 0.39 与 `windows-core` 0.62（打印为 PDF）；设置目录用 Tauri 路径 API，无需 `dirs` |
 | 移除依赖 | `electron`、`electron-builder` |
 | 打包 | `tauri build` → NSIS x64 安装包（`webviewInstallMode: downloadBootstrapper`）+ 免安装 exe |
 | 测试 | `node --test`（text-utils）+ `cargo test`（文件操作）+ 通过 WebView2 远程调试端口（CDP）驱动应用复用 001 的验收脚本 |
@@ -64,7 +64,7 @@ inkmark/
 │       ├── main.rs               # 入口
 │       ├── lib.rs                # Builder、插件、命令注册、导航拦截
 │       ├── fileops.rs            # 读、原子写、目录列表、图片保存（含 cargo test）
-│       ├── settings.rs           # settings.json 读写
+│       ├── settings.rs           # settings.json 读写（与 0.1.0 同一文件）
 │       ├── menu.rs               # 中文菜单
 │       └── pdf.rs                # WebView2 PrintToPdf
 ├── scripts/copy-vditor.mjs       # 只复制 FR-103 所需的 Vditor 资源
@@ -115,7 +115,9 @@ inkmark/
 | 删除 `setDirty`、`closeConfirmed`、`onRequestClose`、`stopFind`、`onFindResult`、`getPathForFile` | 由前端 `onCloseRequested`、`find.js`、`onDragDropEvent` 直接实现 |
 | `find(text, opts)` | 改为前端实现，返回 `{active, total}` |
 | 新增 Rust 命令 `save_image_from_path(docPath, srcPath)` | 拖入图片 |
-| 新增 Rust 命令 `export_pdf(html, outPath)` | |
+| 新增 Rust 命令 `allow_image(path)` | 文档中以绝对路径（含未保存文档的临时图片 `file:///` URL）引用的本地图片，前端改写为 asset 地址显示前授权；仅限图片扩展名 |
+| 新增 Rust 命令 `export_html(path, html)` | 导出 HTML 写盘（不计入最近文件） |
+| 新增 Rust 命令 `export_pdf(html, out)` | HTML 写临时文件后打印为 PDF |
 
 ## 风险
 阶段 1 原型已验证全部风险，详见 [research.md](research.md)。

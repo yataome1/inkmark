@@ -18,11 +18,11 @@
 - [x] T109 `capabilities/default.json` 最小权限
 
 ## 阶段 3：后端（Rust）
-- [ ] T110 [P] `fileops.rs`：`read_file`、`save_file`（原子写）、`list_dir`、`save_image`、`save_image_from_path` + `cargo test`
-- [ ] T111 [P] `settings.rs`：读写 `%APPDATA%\Inkmark\settings.json`、最近文件（FR-104）
-- [ ] T112 [P] `menu.rs`：中文菜单，菜单事件 → `command` 事件
-- [ ] T113 `lib.rs`：插件注册、单实例、命令行参数、导航拦截、打开文档时授权 asset 目录
-- [ ] T114 `pdf.rs`：`export_pdf`
+- [x] T110 [P] `fileops.rs`：`read_file`、`save_file`（原子写）、`list_dir`、`save_image`、`save_image_from_path` + `cargo test`
+- [x] T111 [P] `settings.rs`：读写 `%APPDATA%\Inkmark\settings.json`、最近文件（FR-104）
+- [x] T112 [P] `menu.rs`：中文菜单，菜单事件 → `command` 事件
+- [x] T113 `lib.rs`：插件注册、单实例、命令行参数、导航拦截、打开文档时授权 asset 目录
+- [x] T114 `pdf.rs`：`export_pdf`
 
 ## 阶段 4：前端适配
 - [ ] T115 `platform.js`：按 plan 的 IPC 契约实现 `window.inkmark`
