@@ -56,10 +56,18 @@ pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
             let name = e.file_name().to_string_lossy().into_owned();
             let is_dir = e.file_type().ok()?.is_dir();
             let keep = !name.starts_with('.') && name != "node_modules" && (is_dir || is_markdown(&e.path()));
-            keep.then(|| Entry { path: e.path().to_string_lossy().into_owned(), name, dir: is_dir })
+            keep.then(|| Entry {
+                path: e.path().to_string_lossy().into_owned(),
+                name,
+                dir: is_dir,
+            })
         })
         .collect();
-    out.sort_by(|a, b| b.dir.cmp(&a.dir).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+    out.sort_by(|a, b| {
+        b.dir
+            .cmp(&a.dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
     Ok(out)
 }
 
@@ -79,8 +87,14 @@ fn sanitize(name: &str) -> String {
     }
     let p = Path::new(&out);
     if p.file_stem().is_some_and(|s| s.eq_ignore_ascii_case("image")) {
-        let ext = p.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_else(|| "png".into());
-        let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        let ext = p
+            .extension()
+            .map(|e| e.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "png".into());
+        let ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
         out = format!("image-{ms}.{ext}");
     }
     out
@@ -88,8 +102,14 @@ fn sanitize(name: &str) -> String {
 
 fn unique_name(dir: &Path, name: &str) -> String {
     let p = Path::new(name);
-    let stem = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let ext = p.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = p
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
     let mut candidate = name.to_string();
     let mut i = 1;
     while dir.join(&candidate).exists() {
@@ -101,7 +121,12 @@ fn unique_name(dir: &Path, name: &str) -> String {
 
 /// 保存图片，返回插入 Markdown 的地址：
 /// 已保存的文档 → `assets/<文件名>`（相对路径）；未保存的文档 → 系统临时目录下文件的 `file:///` URL。
-pub fn save_image(doc_path: Option<&Path>, name: &str, bytes: &[u8], temp_root: &Path) -> io::Result<(String, PathBuf)> {
+pub fn save_image(
+    doc_path: Option<&Path>,
+    name: &str,
+    bytes: &[u8],
+    temp_root: &Path,
+) -> io::Result<(String, PathBuf)> {
     let (dir, relative) = match doc_path.and_then(Path::parent) {
         Some(doc_dir) => (doc_dir.join("assets"), true),
         None => (temp_root.join("inkmark-images"), false),
@@ -110,7 +135,11 @@ pub fn save_image(doc_path: Option<&Path>, name: &str, bytes: &[u8], temp_root: 
     let file = unique_name(&dir, &sanitize(name));
     let full = dir.join(&file);
     fs::write(&full, bytes)?;
-    let src = if relative { format!("assets/{file}") } else { file_url(&full) };
+    let src = if relative {
+        format!("assets/{file}")
+    } else {
+        file_url(&full)
+    };
     Ok((src, full))
 }
 
@@ -175,7 +204,12 @@ mod tests {
         let names: Vec<_> = list_dir(&d).unwrap().into_iter().map(|e| (e.name, e.dir)).collect();
         assert_eq!(
             names,
-            [("zdir".into(), true), ("A.markdown".into(), false), ("b.md".into(), false), ("c.TXT".into(), false)]
+            [
+                ("zdir".into(), true),
+                ("A.markdown".into(), false),
+                ("b.md".into(), false),
+                ("c.TXT".into(), false)
+            ]
         );
     }
 

@@ -95,7 +95,7 @@ inkmark/
 | 粘贴图片 | 不变：Vditor `upload.handler` → `invoke('save_image', bytes)` | |
 | `file://` + `lute.SetLinkBase` 显示相对图片 | Tauri asset 协议：`convertFileSrc(目录)` 作为 linkBase；打开文档时 Rust 端 `asset_protocol_scope().allow_directory(文档目录, true)` 动态授权 | 只授权已打开文档所在目录 |
 | 导出 HTML（主进程读 CSS） | `src/export.js` 前端 `fetch` 自身资源（CSS、KaTeX 字体转 base64），经 `save_file` 写盘 | |
-| 设置 `%APPDATA%\Inkmark\settings.json` | 同一路径（`dirs::config_dir()/Inkmark`） | 满足 FR-104，无需迁移 |
+| 设置 `%APPDATA%\Inkmark\settings.json` | 同一路径（Tauri `path().config_dir()/Inkmark`） | 满足 FR-104，无需迁移 |
 
 ### Vditor 资源精简（FR-103）
 `scripts/copy-vditor.mjs` 在 `tauri dev/build` 前运行（`beforeDevCommand` / `beforeBuildCommand`），只复制：

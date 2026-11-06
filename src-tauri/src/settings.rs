@@ -19,7 +19,10 @@ fn defaults() -> Value {
 impl Settings {
     pub fn load(path: PathBuf) -> Self {
         let mut value = defaults();
-        if let Some(Value::Object(saved)) = fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str(&t).ok()) {
+        if let Some(Value::Object(saved)) = fs::read_to_string(&path)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+        {
             merge(&mut value, saved);
         }
         Self { path, value }
@@ -71,7 +74,9 @@ mod tests {
     use super::*;
 
     fn temp_file(tag: &str) -> PathBuf {
-        let p = std::env::temp_dir().join(format!("inkmark-settings-{tag}-{}", std::process::id())).join("settings.json");
+        let p = std::env::temp_dir()
+            .join(format!("inkmark-settings-{tag}-{}", std::process::id()))
+            .join("settings.json");
         let _ = fs::remove_file(&p);
         p
     }

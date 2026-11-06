@@ -4,14 +4,20 @@
 //! `文字\t快捷键` 的形式显示，按键统一由前端 `app.js` 的 KEYMAP 处理。
 //! 菜单 id 形如 `命令` 或 `命令:参数`，由 lib.rs 转为前端的 `command` 事件。
 
-use tauri::menu::{CheckMenuItemBuilder, Menu, MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::menu::{
+    CheckMenuItemBuilder, Menu, MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
+};
 use tauri::{AppHandle, Runtime};
 
 pub const ABOUT: &str = "about";
 pub const HOMEPAGE: &str = "homepage";
 
 fn item<R: Runtime>(app: &AppHandle<R>, id: &str, label: &str, shortcut: &str) -> tauri::Result<MenuItem<R>> {
-    let text = if shortcut.is_empty() { label.to_string() } else { format!("{label}\t{shortcut}") };
+    let text = if shortcut.is_empty() {
+        label.to_string()
+    } else {
+        format!("{label}\t{shortcut}")
+    };
     MenuItemBuilder::with_id(id, text).build(app)
 }
 
@@ -38,7 +44,12 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sam
         .item(&i("save", "保存", "Ctrl+S")?)
         .item(&i("save-as", "另存为…", "Ctrl+Shift+S")?)
         .item(&sep()?)
-        .item(&SubmenuBuilder::new(app, "导出").item(&i("export-html", "HTML…", "")?).item(&i("export-pdf", "PDF…", "")?).build()?)
+        .item(
+            &SubmenuBuilder::new(app, "导出")
+                .item(&i("export-html", "HTML…", "")?)
+                .item(&i("export-pdf", "PDF…", "")?)
+                .build()?,
+        )
         .item(&sep()?)
         .item(&i("quit", "退出", "")?)
         .build()?;
@@ -55,7 +66,11 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sam
 
     let mut paragraph = SubmenuBuilder::new(app, "段落(&P)");
     for n in 1..=6 {
-        paragraph = paragraph.item(&i(&format!("heading:{n}"), &format!("{n} 级标题"), &format!("Ctrl+{n}"))?);
+        paragraph = paragraph.item(&i(
+            &format!("heading:{n}"),
+            &format!("{n} 级标题"),
+            &format!("Ctrl+{n}"),
+        )?);
     }
     let paragraph = paragraph
         .item(&i("paragraph", "段落", "Ctrl+0")?)
@@ -99,7 +114,11 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sam
 
     let mut themes = SubmenuBuilder::new(app, "主题(&T)");
     for (value, label) in [("system", "跟随系统"), ("light", "浅色"), ("dark", "深色")] {
-        themes = themes.item(&CheckMenuItemBuilder::with_id(format!("theme:{value}"), label).checked(theme == value).build(app)?);
+        themes = themes.item(
+            &CheckMenuItemBuilder::with_id(format!("theme:{value}"), label)
+                .checked(theme == value)
+                .build(app)?,
+        );
     }
 
     let help = SubmenuBuilder::new(app, "帮助(&H)")
@@ -108,5 +127,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sam
         .item(&i(ABOUT, "关于 Inkmark", "")?)
         .build()?;
 
-    MenuBuilder::new(app).items(&[&file, &edit, &paragraph, &format, &view, &themes.build()?, &help]).build()
+    MenuBuilder::new(app)
+        .items(&[&file, &edit, &paragraph, &format, &view, &themes.build()?, &help])
+        .build()
 }

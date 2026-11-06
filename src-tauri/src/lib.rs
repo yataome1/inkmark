@@ -127,7 +127,10 @@ fn save_image_from_path(app: AppHandle, doc_path: Option<String>, src_path: Stri
     if !fileops::is_image(src) {
         return Err("不是图片文件".into());
     }
-    let name = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let name = src
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
     store_image(&app, doc_path, &name, &std::fs::read(src).map_err(err)?)
 }
 
@@ -269,7 +272,10 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("a.md"), "").unwrap();
         let args: Vec<String> = ["inkmark.exe", "--flag", "missing.md", "a.md"].map(String::from).into();
-        assert_eq!(file_from_args(&args, &dir), Some(dir.join("a.md").to_string_lossy().into_owned()));
+        assert_eq!(
+            file_from_args(&args, &dir),
+            Some(dir.join("a.md").to_string_lossy().into_owned())
+        );
         assert_eq!(file_from_args(&args[..3], &dir), None);
     }
 }
