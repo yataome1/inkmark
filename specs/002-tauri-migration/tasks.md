@@ -4,10 +4,11 @@
 **格式**: `[ID] [P?] [Story] 描述` —— `[P]` 表示可并行（不同文件、无依赖）。
 
 ## 阶段 1：原型与风险验证（先做，结果可能修改 plan）
-- [ ] T101 初始化 `src-tauri/`（`tauri init`），空窗口加载现有前端，确认 Vditor 从 `vendor/` 正常加载（R6）
-- [ ] T102 验证三按钮对话框（R1）、菜单 `\t` 快捷键文字（R2）、`setTheme` 与 `prefers-color-scheme`（R4）
-- [ ] T103 验证 WebView2 `PrintToPdf`（R3）
-- [ ] T104 release 构建一次空壳，实测体积，更新 plan 中的体积表（R5）
+在仓库外的一次性原型中完成，结果见 [research.md](research.md)。
+- [x] T101 Tauri 原型加载精简 Vditor，确认 `vendor/` 资源与 asset 协议图片正常（R6）
+- [x] T102 验证三按钮对话框（R1）、菜单 `\t` 快捷键文字（R2，结论：全部快捷键由前端处理）、`setTheme` 与 `prefers-color-scheme`（R4）
+- [x] T103 验证 WebView2 `PrintToPdf`（R3）
+- [x] T104 release 构建实测体积并更新 plan（R5：安装包 3.51MB）
 
 ## 阶段 2：基础
 - [ ] T105 宪章修订 1.1.0（新增原则 VII 轻量，更新技术约束）
@@ -25,7 +26,7 @@
 
 ## 阶段 4：前端适配
 - [ ] T115 `platform.js`：按 plan 的 IPC 契约实现 `window.inkmark`
-- [ ] T116 `app.js`：关闭拦截、拖放、linkBase 改用 asset 协议、`cdn` 路径
+- [ ] T116 `app.js`：关闭拦截、拖放、linkBase 改用 asset 协议、`cdn` 路径、文件类快捷键并入 `KEYMAP`、深色代码主题改为 `github-dark`
 - [ ] T117 [P] `find.js`：CSS Custom Highlight API 查找（FR-013）
 - [ ] T118 [P] `export.js`：前端组装导出 HTML（内联 CSS 与 KaTeX 字体）
 
