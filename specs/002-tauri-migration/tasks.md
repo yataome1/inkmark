@@ -25,10 +25,10 @@
 - [x] T114 `pdf.rs`：`export_pdf`
 
 ## 阶段 4：前端适配
-- [ ] T115 `platform.js`：按 plan 的 IPC 契约实现 `window.inkmark`
-- [ ] T116 `app.js`：关闭拦截、拖放、linkBase 改用 asset 协议、`cdn` 路径、文件类快捷键并入 `KEYMAP`、深色代码主题改为 `github-dark`
-- [ ] T117 [P] `find.js`：CSS Custom Highlight API 查找（FR-013）
-- [ ] T118 [P] `export.js`：前端组装导出 HTML（内联 CSS 与 KaTeX 字体）
+- [x] T115 `platform.js`：按 plan 的 IPC 契约实现 `window.inkmark`
+- [x] T116 `app.js`：关闭拦截、拖放、linkBase 改用 asset 协议、`cdn` 路径、文件类快捷键并入 `KEYMAP`、深色代码主题改为 `github-dark`
+- [x] T117 [P] `find.js`：CSS Custom Highlight API 查找（FR-013）
+- [x] T118 [P] `export.js`：前端组装导出 HTML（内联 CSS 与 KaTeX 字体）
 
 ## 阶段 5：工程与文档
 - [ ] T119 `package.json`：移除 Electron 依赖，脚本改为 `tauri dev` / `tauri build`

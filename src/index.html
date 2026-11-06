@@ -2,10 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self' file:; script-src 'self' file: 'unsafe-eval'; style-src 'self' file: 'unsafe-inline'; img-src * file: data: blob:; font-src 'self' file: data:; connect-src 'self' file:"
-    />
+    <!-- CSP 由 src-tauri/tauri.conf.json 的 app.security.csp 统一设置 -->
     <title>Inkmark</title>
     <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
     <link rel="stylesheet" href="styles.css" />
@@ -46,6 +43,9 @@
     </div>
     <script src="vendor/vditor/dist/index.min.js"></script>
     <script src="text-utils.js"></script>
+    <script src="platform.js"></script>
+    <script src="find.js"></script>
+    <script src="export.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

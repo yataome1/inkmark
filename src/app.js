@@ -1,8 +1,8 @@
-/* global Vditor, TextUtils */
+/* global Vditor, TextUtils, Finder, ExportHtml */
 'use strict';
 
 const api = window.inkmark;
-const CDN = new URL('../../node_modules/vditor', location.href).href.replace(/\/$/, '');
+const CDN = new URL('vendor/vditor', location.href).href.replace(/\/$/, '');
 const $ = (sel) => document.querySelector(sel);
 const editorEl = $('#editor');
 
@@ -22,11 +22,6 @@ const basename = (p) => p.split(/[\\/]/).pop();
 const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
 const docName = () => (state.path ? basename(state.path) : '未命名');
 const isMarkdownPath = (p) => /\.(md|markdown|mdown|txt)$/i.test(p);
-
-function toFileUrl(p) {
-  const parts = p.replace(/\\/g, '/').split('/');
-  return 'file:///' + parts.map((s, i) => (i === 0 && /^[A-Za-z]:$/.test(s) ? s : encodeURIComponent(s))).join('/');
-}
 
 function resolvePath(base, rel) {
   if (/^[A-Za-z]:[\\/]/.test(rel)) return rel;
@@ -58,7 +53,6 @@ function refreshDirty() {
   const dirty = vditor.getValue() !== state.saved;
   if (dirty !== state.dirty) {
     state.dirty = dirty;
-    api.setDirty(dirty);
     updateTitle();
   }
 }
@@ -73,12 +67,36 @@ const refreshPanels = debounce(() => {
 function onChange() {
   refreshDirty();
   refreshPanels();
+  findStale = true;
 }
 
-// 相对路径图片按文档目录解析（FR-011）
+// 相对路径图片按文档目录解析（FR-011）；后端打开/保存文档时已授权该目录给 asset 协议
 function applyLinkBase() {
-  vditor.vditor.lute.SetLinkBase(state.path ? toFileUrl(dirname(state.path)) + '/' : '');
+  vditor.vditor.lute.SetLinkBase(state.path ? api.toAssetUrl(dirname(state.path)) + '/' : '');
 }
+
+// 以 file:/// 绝对地址引用的本地图片（如未保存文档中粘贴的图片）：页面无法直接加载，
+// 只在显示时改写为 asset 地址，不改动 Markdown 文本
+async function showFileImage(img) {
+  const src = img.getAttribute('src') || '';
+  if (!src.startsWith('file:')) return;
+  const path = decodeURIComponent(new URL(src).pathname).replace(/^\/([A-Za-z]:)/, '$1');
+  try {
+    await api.allowImage(path);
+    img.src = api.toAssetUrl(path);
+  } catch {
+    // 非图片或无法访问：保持原样
+  }
+}
+new MutationObserver((records) => {
+  for (const r of records) {
+    for (const n of r.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      if (n.tagName === 'IMG') showFileImage(n);
+      else n.querySelectorAll('img[src^="file:"]').forEach(showFileImage);
+    }
+  }
+}).observe(editorEl, { childList: true, subtree: true });
 
 function loadDoc(doc) {
   state.path = doc ? doc.path : null;
@@ -86,7 +104,6 @@ function loadDoc(doc) {
   vditor.setValue(doc ? doc.content : '', true);
   state.saved = vditor.getValue();
   state.dirty = false;
-  api.setDirty(false);
   updateTitle();
   refreshPanels();
   highlightTreeCurrent();
@@ -195,9 +212,9 @@ function toggleSourceMode() {
   vditor.focus();
 }
 
-// 主题跟随 nativeTheme（主进程根据设置修改 themeSource，prefers-color-scheme 随之变化）
+// 主题跟随窗口主题（platform.js 中 setTheme 修改后，prefers-color-scheme 随之变化）
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
-const themeNames = () => (darkQuery.matches ? ['dark', 'dark', 'native'] : ['classic', 'light', 'github']);
+const themeNames = () => (darkQuery.matches ? ['dark', 'dark', 'github-dark'] : ['classic', 'light', 'github']);
 function applyTheme() {
   vditor.setTheme(...themeNames());
 }
@@ -343,6 +360,17 @@ const findbar = $('#findbar');
 const findInput = $('#find-input');
 const replaceInput = $('#replace-input');
 
+let findStale = false; // 查找后文档被修改，匹配位置需要重新计算
+
+function showFindResult({ active, total }) {
+  $('#find-count').textContent = !findInput.value ? '' : total ? `${active}/${total}` : '无结果';
+}
+
+function runFind() {
+  findStale = false;
+  showFindResult(Finder.search(modeElement(), findInput.value));
+}
+
 function showFindbar(withReplace) {
   findbar.hidden = false;
   findbar.classList.toggle('with-replace', withReplace);
@@ -350,27 +378,22 @@ function showFindbar(withReplace) {
   if (selected && !selected.includes('\n')) findInput.value = selected;
   findInput.focus();
   findInput.select();
-  if (findInput.value) api.find(findInput.value, { findNext: true });
+  runFind();
 }
 
 function hideFindbar() {
   findbar.hidden = true;
-  api.stopFind();
+  Finder.clear();
   $('#find-count').textContent = '';
   vditor.focus();
 }
 
 function findStep(forward) {
-  if (findInput.value) api.find(findInput.value, { forward, findNext: false });
+  if (findStale) runFind();
+  else showFindResult(Finder.step(forward));
 }
 
-findInput.addEventListener('input', () => {
-  if (findInput.value) api.find(findInput.value, { findNext: true });
-  else {
-    api.stopFind();
-    $('#find-count').textContent = '';
-  }
-});
+findInput.addEventListener('input', runFind);
 findInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') findStep(!e.shiftKey);
 });
@@ -386,14 +409,11 @@ $('#replace-all').addEventListener('click', () => {
     vditor.setValue(md.split(q).join(replaceInput.value));
     onChange();
   }
-  api.stopFind();
+  Finder.clear();
   $('#find-count').textContent = `已替换 ${n} 处`;
 });
 findbar.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideFindbar();
-});
-api.onFindResult((r) => {
-  if (r.finalUpdate) $('#find-count').textContent = r.matches ? `${r.activeMatchOrdinal}/${r.matches}` : '无结果';
 });
 
 // ---------------------------------------------------------------- 导出（FR-014）
@@ -410,7 +430,7 @@ async function renderForExport() {
       lang: 'zh_CN',
       // 传入当前主题，避免 preview 覆盖编辑器正在使用的样式
       theme: { current: dark ? 'dark' : 'light', path: `${CDN}/dist/css/content-theme` },
-      hljs: { style: dark ? 'native' : 'github' },
+      hljs: { style: dark ? 'github-dark' : 'github' },
       math: { engine: 'KaTeX' },
       markdown: { toc: true, footnotes: true, mark: true },
       after: resolve,
@@ -425,8 +445,15 @@ async function renderForExport() {
 async function exportAs(kind) {
   const name = state.path ? basename(state.path).replace(/\.\w+$/, '') : '未命名';
   const defaultPath = (state.path ? dirname(state.path) + '\\' : '') + `${name}.${kind}`;
-  const doc = { title: name, body: await renderForExport(), baseDir: state.path ? dirname(state.path) : undefined };
-  const out = await (kind === 'pdf' ? api.exportPdf(doc, defaultPath) : api.exportHtml({ ...doc, baseDir: undefined }, defaultPath));
+  const body = await renderForExport();
+  let out;
+  if (kind === 'pdf') {
+    // PDF 由临时 HTML 生成，需用 <base> 让相对图片指向原文档目录
+    const baseUrl = state.path ? new URL(`file:///${dirname(state.path).replace(/\\/g, '/')}/`).href : undefined;
+    out = await api.exportPdf(await ExportHtml.buildHtml({ title: name, body, baseUrl }), defaultPath);
+  } else {
+    out = await api.exportHtml(await ExportHtml.buildHtml({ title: name, body }), defaultPath);
+  }
   if (out) $('#status-flags').textContent = `已导出：${out}`;
 }
 
@@ -467,8 +494,18 @@ const COMMANDS = {
     onCaretMove();
   },
   fullscreen: () => api.toggleFullscreen(),
+  'zoom-in': () => setZoom(zoom + 0.1),
+  'zoom-out': () => setZoom(zoom - 0.1),
+  'zoom-reset': () => setZoom(1),
   theme: async (theme) => (state.settings = await api.setSettings({ theme })),
+  quit: () => api.close(),
 };
+
+let zoom = 1;
+function setZoom(z) {
+  zoom = Math.min(3, Math.max(0.5, Math.round(z * 10) / 10));
+  api.setZoom(zoom);
+}
 
 function run(cmd, arg) {
   if (!vditor) return;
@@ -480,8 +517,17 @@ function run(cmd, arg) {
   }
 }
 
-// Typora 风格快捷键（与 menu.js 中 registerAccelerator:false 的条目一一对应）
+// Typora 风格快捷键，与 src-tauri/src/menu.rs 中显示的快捷键一一对应。
+// WebView2 有焦点时菜单快捷键不会触发，因此全部在这里处理（research.md R2）。
 const KEYMAP = {
+  'Ctrl+KeyN': ['new'],
+  'Ctrl+KeyO': ['open'],
+  'Ctrl+Shift+KeyO': ['open-folder'],
+  'Ctrl+KeyS': ['save'],
+  'Ctrl+Shift+KeyS': ['save-as'],
+  'Ctrl+Equal': ['zoom-in'],
+  'Ctrl+Minus': ['zoom-out'],
+  'Ctrl+Shift+Digit9': ['zoom-reset'],
   'Ctrl+Digit0': ['paragraph'],
   ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`Ctrl+Digit${n}`, ['heading', n]])),
   'Ctrl+KeyB': ['bold'],
@@ -541,21 +587,21 @@ editorEl.addEventListener(
   true,
 );
 
-window.addEventListener('dragover', (e) => e.preventDefault());
-window.addEventListener(
-  'drop',
-  (e) => {
-    const md = [...(e.dataTransfer?.files || [])].map((f) => api.getPathForFile(f)).find(isMarkdownPath);
-    if (md) {
-      e.preventDefault();
-      e.stopPropagation();
-      openPath(md);
-    } else if (!editorEl.contains(e.target)) {
-      e.preventDefault();
+// 拖入 Markdown 文件则打开；拖入图片则保存到 assets/ 并插入（FR-001、FR-011）
+api.onDragDrop(async ({ type, paths }) => {
+  if (type !== 'drop' || !paths?.length || !vditor) return;
+  const md = paths.find(isMarkdownPath);
+  if (md) return openPath(md);
+  for (const p of paths) {
+    try {
+      const src = await api.saveImageFromPath(state.path, p);
+      const url = src.startsWith('file:') ? src : encodeURI(src);
+      vditor.insertValue(`![${basename(p).replace(/\.\w+$/, '')}](${url})\n`);
+    } catch {
+      // 非图片文件：忽略
     }
-  },
-  true,
-);
+  }
+});
 
 // ---------------------------------------------------------------- 图片（FR-011）
 
@@ -576,8 +622,8 @@ document.querySelectorAll('.sidebar-tabs button').forEach((b) => b.addEventListe
 $('#open-folder').addEventListener('click', () => run('open-folder'));
 api.onCommand(({ cmd, arg }) => run(cmd, arg));
 api.onOpenFile((p) => run('open-path', p));
-api.onRequestClose(async () => {
-  if (await confirmLeave()) api.closeConfirmed();
+api.onCloseRequested(async (e) => {
+  if (!(await confirmLeave())) e.preventDefault();
 });
 
 (async () => {

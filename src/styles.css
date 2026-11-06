@@ -245,6 +245,13 @@ body {
 #findbar button:hover {
   background: var(--hover);
 }
+::highlight(im-find) {
+  background-color: rgba(255, 196, 61, 0.45);
+}
+::highlight(im-find-current) {
+  background-color: #ff9632;
+  color: #000;
+}
 #find-count {
   min-width: 40px;
   color: var(--muted);
