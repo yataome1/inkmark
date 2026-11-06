@@ -1,4 +1,4 @@
-# 实施计划：表格编辑、可调整宽度的侧边栏、收藏夹
+# 实施计划：表格编辑、可调整宽度的侧边栏、收藏夹、点击时内容不跳动
 
 **分支**: `003-tables-sidebar-favorites` | **规格**: [spec.md](spec.md)
 
@@ -15,6 +15,8 @@
 | `setValue` 与撤销 | IR 模式 `setValue` 后执行 `processAfterRender(enableAddUndoStack)`，操作可 `Ctrl+Z` 撤销 | 同上，`Vditor.prototype.setValue` |
 | 页面内拖放 | Tauri 在 Windows 上接管文件拖放（`dragDropEnabled`），会使 HTML5 拖放失效；关闭它又会失去拖入文件的路径 | Tauri 文档；002 已依赖其拖放事件 |
 | → 拖动排序 | 收藏排序与表格行列拖动统一用 Pointer Events 实现，不用 HTML5 拖放 | |
+| 点击跳动的原因 | IR 模式在光标进入块时给块加 `vditor-ir__node--expand` 并在渲染结果上方显示源码；离开时移除。实测 Mermaid 块高度 254px ↔ 355px，滚动位置不变，被点击内容移位约 100px | CDP 逐帧记录 + 真实鼠标点击复现 |
+| 浏览器自带的滚动锚定（`overflow-anchor`） | 只补偿视口锚点**上方**的变化，锚点选在视口顶部附近；这里的变化发生在视口中部，不起作用 | |
 
 ## 技术上下文
 | 项 | 选择 |
@@ -28,7 +30,7 @@
 |---|---|
 | I 规格先行 | ✅ |
 | II 离线 | ✅ 无网络资源；图标用内联 SVG/字符 |
-| III Markdown 唯一真相 | ✅ 表格操作直接生成标准 GFM 表格；对齐写入分隔行，不写 HTML |
+| III Markdown 唯一真相 | ✅ 表格操作直接生成标准 GFM 表格；对齐写入分隔行，不写 HTML；点击锚定只改滚动位置 |
 | IV 不丢数据 | ✅ 表格操作可撤销；点击收藏文件走 `confirmLeave()` |
 | V 安全默认 | ✅ `path_info` 只返回是否存在、是否目录，不读内容；不新增权限 |
 | VI 简单 | ✅ 收藏不分组、不改名；表格只有一套变换逻辑 |
@@ -42,6 +44,7 @@ src/
 ├── contextmenu.js        新：通用右键菜单组件（表格、文件树、收藏共用）
 ├── resizer.js            新：侧边栏分割线
 ├── favorites.js          新：收藏列表渲染、排序、增删
+├── anchor.js             新：点击锚定（FR-215）
 ├── app.js                改：接入以上模块；KEYMAP 增加 Ctrl+Shift+2 与表格快捷键；文件树行增加 ☆
 ├── index.html            改：收藏页、分割线、脚本引用
 ├── platform.js           改：pathInfo
@@ -93,6 +96,14 @@ test/table-utils.test.js  新
 - 入口：文件树每行与根文件夹名悬停显示 ☆/★；右键菜单；菜单“文件 → 收藏当前文件”（命令 `toggle-favorite-current`，前端判断当前状态；后端菜单文字固定为“收藏/取消收藏当前文件”）。
 - 点击：文件 → `openPath`；文件夹 → `showFolder` + 切换到“文件”页 + 保存为 `settings.folder`。
 
+### 点击锚定（`anchor.js`，FR-215）
+- **触发**：编辑区 `pointerdown`（左键），且当前为 IR 模式、未开启打字机模式。
+- **选锚点**：`document.elementFromPoint(x, y)` 得到被点击元素；若在块的渲染结果内（`.vditor-ir__preview`、`img`），以该元素为锚点；否则以被点击的文本所在元素为锚点。记录其 `getBoundingClientRect().top`。
+- **补偿窗口**：从 `pointerdown` 开始，到 `pointerup` 后 300ms 为止，每帧（`requestAnimationFrame`）比较锚点当前 `top` 与记录值，差值不为 0 时 `scroller.scrollTop += 差值`（浏览器自动截断到可滚动范围）。锚点被移出 DOM（如 Vditor 重新渲染了该块）时，改用同一位置的新元素或结束补偿。
+- **不触发**：键盘输入、源代码模式、打字机模式；补偿窗口内一旦发生 `input` 事件立即结束补偿（保证打字时行为与 0.2.0 相同）。
+- **不改变**：DOM、光标、选区、撤销栈；只写 `scrollTop`。
+- **可测试性**：补偿量计算写成纯函数 `nextScrollTop(scrollTop, anchorTopBefore, anchorTopNow)`；验收用 CDP 逐帧记录锚点位置 + 真实鼠标点击（与本次复现相同的方法）。
+
 ### 后端
 - `path_info(paths: Vec<String>) -> Vec<{ exists, dir }>`。
 - `settings.rs` 默认值增加 `favorites: []`、`sidebar.width: 260`；读取 0.2.0 的设置文件时缺省字段取默认值（已有 merge 逻辑：顶层合并；`sidebar` 为整体对象，前端读取 `width` 时缺省回落到 260）。
@@ -111,3 +122,5 @@ test/table-utils.test.js  新
 | R2 | IR DOM 中表格序号与源码表格序号不一致（如 HTML 表格、代码块中的表格） | `findTables` 跳过代码围栏；不一致时放弃操作并提示 |
 | R3 | 光标恢复位置不准 | 按 (表格序号, 行, 列) 定位单元格并放到内容末尾；单元测试覆盖变换后的目标坐标 |
 | R4 | 工具条与 Vditor 自身的悬浮元素（如代码块语言选择）重叠 | 工具条只在表格内显示，`z-index` 低于 Vditor 弹出层 |
+| R5 | 补偿与 Vditor 自身的滚动（如 `scrollCenter`）相互抵消或抖动 | 补偿只在点击后 300ms 内、按帧进行；实测逐帧位置，若出现来回抖动则改为只在布局稳定后补偿一次 |
+| R6 | 锚点元素在展开时被 Vditor 替换 | 按点击坐标在新 DOM 中重新取元素；取不到则结束补偿，退化为 0.2.0 行为 |

@@ -1,4 +1,4 @@
-# 任务清单：表格编辑、可调整宽度的侧边栏、收藏夹
+# 任务清单：表格编辑、可调整宽度的侧边栏、收藏夹、点击时内容不跳动
 
 **输入**: [spec.md](spec.md)、[plan.md](plan.md)
 **格式**: `[ID] [P?] [Story] 描述` —— `[P]` 表示可并行（不同文件、无依赖）。
@@ -28,10 +28,14 @@
 - [ ] T216 [US3] 打开（文件/文件夹）、× 移除、键盘操作
 - [ ] T217 [US3] 拖动排序（Pointer Events，4px 阈值、指示线）与持久化
 
-## 阶段 5：文档与验证
-- [ ] T218 更新 README（特性、快捷键）、CHANGELOG（Unreleased）、`resources/samples/demo.md`（表格说明）
-- [ ] T219 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
-- [ ] T220 按 spec 验收场景逐条验证 + 002 清单回归，记录于 `checklist.md`；release 构建确认安装包 ≤ 10MB
+## 阶段 5：用户故事 4 —— 点击时内容不跳动 (P1)
+- [ ] T218 [US4] `src/anchor.js`：点击锚定（选锚点、按帧补偿、输入即停、模式判断）+ 补偿计算纯函数的单元测试
+- [ ] T219 [US4] 用 CDP 逐帧记录 + 真实鼠标点击验证图表、公式、代码块、图片的展开与收起（位移 ≤ 2px），并确认打字、源代码模式、打字机模式、拖选不受影响
+
+## 阶段 6：文档与验证
+- [ ] T220 更新 README（特性、快捷键）、CHANGELOG（Unreleased）、`resources/samples/demo.md`（表格说明）
+- [ ] T221 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
+- [ ] T222 按 spec 验收场景逐条验证 + 002 清单回归，记录于 `checklist.md`；release 构建确认安装包 ≤ 10MB
 
 ## 依赖
-阶段 1 → 阶段 2、3、4（彼此独立）→ 阶段 5。T204–T205 先于 T206–T211。
+阶段 1 → 阶段 2、3、4、5（彼此独立）→ 阶段 6。T204–T205 先于 T206–T211。
