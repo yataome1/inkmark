@@ -112,6 +112,7 @@ test/table-utils.test.js  新
 - **选锚点**：`document.elementFromPoint(x, y)` 得到被点击元素；若在块的渲染结果内（`.vditor-ir__preview`、`img`），以该元素为锚点；否则以被点击的文本所在元素为锚点。记录其 `getBoundingClientRect().top`。
 - **补偿窗口**：从 `pointerdown` 开始，到 `pointerup` 后 300ms 为止，每帧（`requestAnimationFrame`）比较锚点当前 `top` 与记录值，差值不为 0 时 `scroller.scrollTop += 差值`（浏览器自动截断到可滚动范围）。锚点被移出 DOM（如 Vditor 重新渲染了该块）时，改用同一位置的新元素或结束补偿。
 - **不触发**：键盘输入、源代码模式、打字机模式；补偿窗口内一旦发生 `input` 事件立即结束补偿（保证打字时行为与 0.2.0 相同）。
+- **键盘锚定（FR-217）**：编辑区捕获阶段 `keydown`，键为 `ArrowUp/Down/Left/Right`、`Home`、`End`（不含 `Ctrl` 组合、`PageUp/PageDown`）。按键前记录光标所在块（`data-block` 顶层元素）的 `top`；若该块在按键后被收起（光标已离开它），改以光标到达的块为锚点，记录其按键前的 `top`。补偿窗口为 `keydown` 到 `keyup` 后 300ms（按住重复按键时持续）；之后若光标矩形超出 `scroller` 可视区，最小距离滚动使其可见。其余规则与点击锚定共用 `nextScrollTop`。
 - **不改变**：DOM、光标、选区、撤销栈；只写 `scrollTop`。
 - **可测试性**：补偿量计算写成纯函数 `nextScrollTop(scrollTop, anchorTopBefore, anchorTopNow)`；验收用 CDP 逐帧记录锚点位置 + 真实鼠标点击（与本次复现相同的方法）。
 
