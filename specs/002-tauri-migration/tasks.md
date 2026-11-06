@@ -36,8 +36,8 @@
 - [x] T121 更新 `AGENTS.md`（目录约定、安全约束）、`CONTRIBUTING.md`、`README.md`、`CHANGELOG.md`（0.2.0）
 
 ## 阶段 6：验证与发布
-- [ ] T122 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo test`、`cargo clippy`
-- [ ] T123 按 001 `checklist.md` 全部场景回归 + 002 验收场景（体积、启动时间、内存对比），记录于 `checklist.md`
+- [x] T122 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo test`、`cargo clippy`
+- [x] T123 按 001 `checklist.md` 全部场景回归 + 002 验收场景（体积、启动时间、内存对比），记录于 `checklist.md`
 - [ ] T124 合并到 `main`，打 `v0.2.0` 标签发布
 
 ## 依赖
