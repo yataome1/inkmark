@@ -53,7 +53,7 @@ test/
 
 ### 文档读写（US2，FR-602）
 - `read_file` 不变（UTF-8 有损解码，BOM 作为 `﻿` 保留在字符串中）。
-- `DocFormat.split(text)` → `{ body, bom, eol }`：去掉开头的 `﻿`；文件中出现 `\r\n` 且不存在单独的 `\n` 时 `eol = '\r\n'`，否则 `'\n'`。编辑器只接收 `\n` 换行的 `body`。
+- `DocFormat.split(text)` → `{ body, bom, eol }`：去掉开头的 BOM；`eol` 取文件中占多数的换行符。编辑器只接收 `\n` 换行的 `body`。
 - `DocFormat.join(body, { bom, eol })` 保存时还原。
 - 脏标记：比较 `view.state.doc` 与载入时的文档（`Text.eq`），不做字符串化。
 - 已知限制（规格澄清中注明）：混合换行符的文件统一为占多数的一种；非 UTF-8 文件按 0.2.x 的有损解码处理。
@@ -100,11 +100,13 @@ test/
 ## IPC 契约变更
 无。
 
-## 体积影响（估算，实施后实测）
+## 体积影响（阶段 1 实测）
 | 项 | 0.2.1 | 0.3.0 |
 |---|---|---|
-| 编辑内核 | Vditor 0.29MB + Lute 4.0MB + flowchart 0.13MB | CodeMirror 约 0.5MB + markdown-it 约 0.1MB |
-| KaTeX、Mermaid、highlight.js | 由 Vditor 附带 | 直接取自各自的包，版本可能更新 |
+| 编辑内核 | Vditor 0.29MB + Lute 4.0MB + flowchart 0.13MB | CodeMirror + markdown-it 0.71MB |
+| KaTeX、Mermaid、highlight.js | 由 Vditor 附带 | 直接取自各自的包；Mermaid 12.3.0 为 5.5MB |
+| `src/vendor` 总计 | 9.18MB | 7.66MB |
+| 安装包 | 3.55MiB | 3.33MiB |
 
 ## 风险
 - **R1 即时渲染工作量**：元素种类多，各自有边界情况。应对：按元素逐个实现并用 demo.md 与长文档回归；规格 005 原型已验证主要难点（块小部件、表格单元格、锚定）。

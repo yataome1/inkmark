@@ -4,10 +4,10 @@
 **格式**: `[ID] [P?] [Story] 描述` —— `[P]` 表示可并行（不同文件、无依赖）。
 
 ## 阶段 1：基础
-- [ ] T601 宪章 1.2.0 与 AGENTS.md：vendor 阶段允许 esbuild 打包第三方库，应用代码仍不打包
-- [ ] T602 `scripts/vendor.mjs` + `vendor-entry.mjs`：打包 CodeMirror 与 markdown-it，复制 KaTeX、Mermaid、highlight.js；`package.json` 依赖改为精确版本，移除 `vditor`；输出体积
-- [ ] T603 [P] [US2] `src/doc-format.js`（BOM、换行符拆分与还原）+ `test/doc-format.test.js`
-- [ ] T604 [P] `src/render.js`：KaTeX、Mermaid 队列与缓存、highlight.js、图片地址解析
+- [x] T601 宪章 1.2.0 与 AGENTS.md：vendor 阶段允许 esbuild 打包第三方库，应用代码仍不打包
+- [x] T602 `scripts/vendor.mjs` + `vendor-entry.mjs`：打包 CodeMirror 与 markdown-it，复制 KaTeX、Mermaid、highlight.js；`package.json` 依赖改为精确版本，移除 `vditor`；输出体积
+- [x] T603 [P] [US2] `src/doc-format.js`（BOM、换行符拆分与还原）+ `test/doc-format.test.js`
+- [x] T604 [P] `src/render.js`：KaTeX、Mermaid 队列与缓存、highlight.js、图片地址解析
 
 ## 阶段 2：用户故事 1、2 —— 编辑器骨架、撤销、不改写文件 (P1)
 - [ ] T605 [US1] [US2] `src/editor.js`：创建视图、`history`、载入（新状态，清空历史）、取文本、脏标记、源代码模式（Compartment）
