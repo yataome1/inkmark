@@ -10,9 +10,9 @@
 - [x] T604 [P] `src/render.js`：KaTeX、Mermaid 队列与缓存、highlight.js、图片地址解析
 
 ## 阶段 2：用户故事 1、2 —— 编辑器骨架、撤销、不改写文件 (P1)
-- [ ] T605 [US1] [US2] `src/editor.js`：创建视图、`history`、载入（新状态，清空历史）、取文本、脏标记、源代码模式（Compartment）
-- [ ] T606 [US2] `app.js` 接入：打开、保存（还原 BOM/换行符）、另存为、`confirmLeave`、标题栏、字数；删除 Vditor 相关代码与样式
-- [ ] T607 [US1] [US2] CDP 验证：撤销耗时与其他块 DOM 不变；demo.md、长文档、CRLF、BOM 文件“打开→保存”逐字节相同
+- [x] T605 [US1] [US2] `src/editor.js`：创建视图、`history`、载入（新状态，清空历史）、取文本、脏标记、源代码模式（Compartment）
+- [x] T606 [US2] `app.js` 接入：打开、保存（还原 BOM/换行符）、另存为、`confirmLeave`、标题栏、字数；删除 Vditor 相关代码与样式
+- [x] T607 [US1] [US2] CDP 验证：撤销耗时与其他块 DOM 不变；demo.md、长文档、CRLF、BOM 文件“打开→保存”逐字节相同
 
 ## 阶段 3：用户故事 3 —— Typora 式即时渲染 (P1)
 - [ ] T608 [US3] `src/live-preview.js` 框架：StateField、激活判定、可视区域遍历、输入法组合期间不重算

@@ -1,20 +1,19 @@
-/* global Vditor, TextUtils, Finder, ExportHtml */
+/* global Editor, TextUtils, DocFormat, Finder, ExportHtml */
 'use strict';
 
 const api = window.inkmark;
-const CDN = new URL('vendor/vditor', location.href).href.replace(/\/$/, '');
 const $ = (sel) => document.querySelector(sel);
 const editorEl = $('#editor');
 
 const state = {
   path: null, // 当前文件路径，未命名为 null
-  saved: '', // 最近一次保存/打开时的内容，用于判断 dirty
+  format: { bom: false, eol: '\n' }, // 打开时的 BOM 与换行符，保存时还原（FR-602）
   dirty: false,
   settings: null,
   focus: false,
   typewriter: false,
 };
-let vditor;
+let editor;
 
 // ---------------------------------------------------------------- 工具函数
 
@@ -41,7 +40,7 @@ function debounce(fn, ms) {
   };
 }
 
-const modeElement = () => vditor.vditor[vditor.getCurrentMode()].element;
+const modeElement = () => editor.dom;
 
 // ---------------------------------------------------------------- 文档状态（FR-005/006）
 
@@ -50,7 +49,7 @@ function updateTitle() {
 }
 
 function refreshDirty() {
-  const dirty = vditor.getValue() !== state.saved;
+  const dirty = editor.isDirty();
   if (dirty !== state.dirty) {
     state.dirty = dirty;
     updateTitle();
@@ -58,7 +57,7 @@ function refreshDirty() {
 }
 
 const refreshPanels = debounce(() => {
-  const md = vditor.getValue();
+  const md = editor.getValue();
   const { words, chars } = TextUtils.countWords(md);
   $('#status-count').textContent = `${words} 词 · ${chars} 字符`;
   renderOutline(md);
@@ -68,11 +67,6 @@ function onChange() {
   refreshDirty();
   refreshPanels();
   findStale = true;
-}
-
-// 相对路径图片按文档目录解析（FR-011）；后端打开/保存文档时已授权该目录给 asset 协议
-function applyLinkBase() {
-  vditor.vditor.lute.SetLinkBase(state.path ? api.toAssetUrl(dirname(state.path)) + '/' : '');
 }
 
 // 以 file:/// 绝对地址引用的本地图片（如未保存文档中粘贴的图片）：页面无法直接加载，
@@ -100,28 +94,26 @@ new MutationObserver((records) => {
 
 function loadDoc(doc) {
   state.path = doc ? doc.path : null;
-  applyLinkBase();
-  vditor.setValue(doc ? doc.content : '', true);
-  state.saved = vditor.getValue();
+  const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
+  state.format = { bom, eol };
+  editor.load(body);
   state.dirty = false;
   updateTitle();
   refreshPanels();
   highlightTreeCurrent();
-  vditor.focus();
-  modeElement().scrollTop = 0;
+  editor.focus();
 }
 
 async function save(as = false) {
-  const content = vditor.getValue();
+  const content = DocFormat.join(editor.getValue(), state.format);
   const suggested = state.path || '未命名.md';
   const p = as ? await api.saveAs(content, suggested) : await api.saveFile(state.path, content);
   if (!p) return false;
   if (p !== state.path) {
     state.path = p;
-    applyLinkBase();
     highlightTreeCurrent();
   }
-  state.saved = content;
+  editor.markSaved();
   state.dirty = true; // 强制 refreshDirty 发出更新
   refreshDirty();
   updateTitle();
@@ -153,36 +145,8 @@ async function openPath(p) {
 
 // ---------------------------------------------------------------- 排版命令（FR-012）
 
-// 隐藏的 Vditor 工具栏按钮；hotkey 置空，快捷键统一由本文件分发，避免重复触发
-const TOOLBAR = ['bold', 'italic', 'strike', 'line', 'quote', 'list', 'ordered-list', 'check', 'code', 'inline-code', 'link', 'table'];
-
-function clickToolbar(name) {
-  vditor.vditor.toolbar.elements[name].children[0].dispatchEvent(new CustomEvent('click'));
-}
-
-function sendEditorKey(code) {
-  modeElement().dispatchEvent(new KeyboardEvent('keydown', { code, ctrlKey: true, altKey: true, bubbles: true, cancelable: true }));
-}
-
-function setParagraph() {
-  const sel = getSelection();
-  if (!sel.rangeCount) return;
-  const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-  const block = node.closest('[data-block="0"]');
-  const marker = block && block.querySelector('.vditor-ir__marker--heading, [data-type="heading-marker"]');
-  if (!marker) return;
-  marker.textContent = '';
-  modeElement().dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
-}
-
-const FORMAT = {
-  heading: (n) => sendEditorKey(`Digit${n}`),
-  paragraph: setParagraph,
-  underline: () => vditor.updateValue(`<u>${vditor.getSelection()}</u>`),
-  'math-block': () => vditor.insertValue('\n$$\n\n$$\n'),
-  'code-block': () => clickToolbar('code'),
-  ...Object.fromEntries(TOOLBAR.map((name) => [name, () => clickToolbar(name)])),
-};
+// 排版命令由 T619 实现
+const FORMAT = {};
 
 // ---------------------------------------------------------------- 视图命令
 
@@ -200,25 +164,17 @@ async function setSidebar(patch) {
 }
 
 function updateStatus() {
-  $('#status-mode').textContent = vditor.getCurrentMode() === 'sv' ? '源代码模式' : '即时渲染';
+  $('#status-mode').textContent = editor.isSource() ? '源代码模式' : '即时渲染';
   $('#status-flags').textContent = [state.focus && '专注', state.typewriter && '打字机'].filter(Boolean).join(' · ');
   editorEl.classList.toggle('focus-mode', state.focus);
   editorEl.classList.toggle('typewriter-mode', state.typewriter);
 }
 
 function toggleSourceMode() {
-  sendEditorKey(vditor.getCurrentMode() === 'sv' ? 'Digit8' : 'Digit9');
+  editor.toggleSource();
   updateStatus();
-  vditor.focus();
+  editor.focus();
 }
-
-// 主题跟随窗口主题（platform.js 中 setTheme 修改后，prefers-color-scheme 随之变化）
-const darkQuery = matchMedia('(prefers-color-scheme: dark)');
-const themeNames = () => (darkQuery.matches ? ['dark', 'dark', 'github-dark'] : ['classic', 'light', 'github']);
-function applyTheme() {
-  vditor.setTheme(...themeNames());
-}
-darkQuery.addEventListener('change', applyTheme);
 
 // ---------------------------------------------------------------- 大纲（FR-007）
 
@@ -244,14 +200,7 @@ function renderOutline(md) {
 }
 
 function scrollToHeading(i) {
-  const el = modeElement();
-  if (vditor.getCurrentMode() === 'ir') {
-    const target = el.querySelectorAll(':scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6')[i];
-    if (target) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  } else {
-    const total = vditor.getValue().split('\n').length;
-    getScroller(el).scrollTop = (headings[i].line / total) * el.scrollHeight;
-  }
+  editor.scrollToLine(headings[i].line);
 }
 
 // ---------------------------------------------------------------- 文件树（FR-007）
@@ -335,7 +284,7 @@ function currentBlock() {
 }
 
 function onCaretMove() {
-  if (!vditor || !modeElement().contains(getSelection().anchorNode)) return;
+  if (!editor || !modeElement().contains(getSelection().anchorNode)) return;
   if (state.focus) {
     const block = currentBlock();
     modeElement()
@@ -374,7 +323,7 @@ function runFind() {
 function showFindbar(withReplace) {
   findbar.hidden = false;
   findbar.classList.toggle('with-replace', withReplace);
-  const selected = vditor.getSelection();
+  const selected = editor.getSelectionText();
   if (selected && !selected.includes('\n')) findInput.value = selected;
   findInput.focus();
   findInput.select();
@@ -385,7 +334,7 @@ function hideFindbar() {
   findbar.hidden = true;
   Finder.clear();
   $('#find-count').textContent = '';
-  vditor.focus();
+  editor.focus();
 }
 
 function findStep(forward) {
@@ -403,11 +352,10 @@ $('#find-close').addEventListener('click', hideFindbar);
 $('#replace-all').addEventListener('click', () => {
   const q = findInput.value;
   if (!q) return;
-  const md = vditor.getValue();
+  const md = editor.getValue();
   const n = md.split(q).length - 1;
   if (n) {
-    vditor.setValue(md.split(q).join(replaceInput.value));
-    onChange();
+    editor.replaceAll(md.split(q).join(replaceInput.value));
   }
   Finder.clear();
   $('#find-count').textContent = `已替换 ${n} 处`;
@@ -418,28 +366,9 @@ findbar.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- 导出（FR-014）
 
+// 改用 markdown-it 由 T623 实现
 async function renderForExport() {
-  const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;left:-10000px;top:0;width:860px';
-  document.body.append(div);
-  const dark = darkQuery.matches;
-  await new Promise((resolve) =>
-    Vditor.preview(div, vditor.getValue(), {
-      cdn: CDN,
-      mode: 'light',
-      lang: 'zh_CN',
-      // 传入当前主题，避免 preview 覆盖编辑器正在使用的样式
-      theme: { current: dark ? 'dark' : 'light', path: `${CDN}/dist/css/content-theme` },
-      hljs: { style: dark ? 'github-dark' : 'github' },
-      math: { engine: 'KaTeX' },
-      markdown: { toc: true, footnotes: true, mark: true },
-      after: resolve,
-    }),
-  );
-  await new Promise((r) => setTimeout(r, 500)); // 等待 mermaid 等异步渲染完成
-  const body = div.innerHTML;
-  div.remove();
-  return body;
+  throw new Error('导出尚未迁移（T623）');
 }
 
 async function exportAs(kind) {
@@ -508,9 +437,9 @@ function setZoom(z) {
 }
 
 function run(cmd, arg) {
-  if (!vditor) return;
+  if (!editor) return;
   if (FORMAT[cmd]) {
-    if (!modeElement().contains(getSelection().anchorNode)) vditor.focus();
+    if (!modeElement().contains(getSelection().anchorNode)) editor.focus();
     FORMAT[cmd](arg);
   } else if (COMMANDS[cmd]) {
     COMMANDS[cmd](arg);
@@ -560,7 +489,7 @@ window.addEventListener(
   (e) => {
     const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
     const hit = KEYMAP[key];
-    if (!hit || !vditor) return;
+    if (!hit || !editor) return;
     if (FORMAT[hit[0]] && !modeElement().contains(e.target)) return;
     e.preventDefault();
     e.stopPropagation();
@@ -589,14 +518,14 @@ editorEl.addEventListener(
 
 // 拖入 Markdown 文件则打开；拖入图片则保存到 assets/ 并插入（FR-001、FR-011）
 api.onDragDrop(async ({ type, paths }) => {
-  if (type !== 'drop' || !paths?.length || !vditor) return;
+  if (type !== 'drop' || !paths?.length || !editor) return;
   const md = paths.find(isMarkdownPath);
   if (md) return openPath(md);
   for (const p of paths) {
     try {
       const src = await api.saveImageFromPath(state.path, p);
       const url = src.startsWith('file:') ? src : encodeURI(src);
-      vditor.insertValue(`![${basename(p).replace(/\.\w+$/, '')}](${url})\n`);
+      editor.insert(`![${basename(p).replace(/\.\w+$/, '')}](${url})\n`);
     } catch {
       // 非图片文件：忽略
     }
@@ -611,9 +540,8 @@ async function uploadImages(files) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const src = await api.saveImage(state.path, file.name, bytes);
     const url = src.startsWith('file:') ? src : encodeURI(src);
-    vditor.insertValue(`![${file.name.replace(/\.\w+$/, '')}](${url})\n`);
+    editor.insert(`![${file.name.replace(/\.\w+$/, '')}](${url})\n`);
   }
-  return null;
 }
 
 // ---------------------------------------------------------------- 启动
@@ -631,43 +559,9 @@ api.onCloseRequested(async (e) => {
   applySidebar();
   if (state.settings.folder) showFolder(state.settings.folder);
 
-  const [uiTheme, contentTheme, codeTheme] = themeNames();
-  vditor = new Vditor('editor', {
-    mode: 'ir',
-    theme: uiTheme,
-    cdn: CDN,
-    lang: 'zh_CN',
-    height: '100%',
-    placeholder: '开始写作…',
-    cache: { enable: false },
-    toolbar: TOOLBAR.map((name) => ({ name, hotkey: '' })),
-    toolbarConfig: { hide: true },
-    outline: { enable: false },
-    counter: { enable: false },
-    preview: {
-      mode: 'editor',
-      math: { engine: 'KaTeX' },
-      hljs: { lineNumber: false, style: codeTheme },
-      theme: { current: contentTheme },
-      markdown: { toc: true, footnotes: true, mark: true },
-    },
-    upload: { accept: 'image/*', multiple: true, handler: uploadImages },
-    input: onChange,
-    after: async () => {
-      const lute = vditor.vditor.lute;
-      for (const name of ['VditorIRDOM2Md', 'SpinVditorIRDOM', 'VditorIRDOM2HTML']) {
-        const fn = lute[name].bind(lute);
-        lute[name] = (html) => fn(TextUtils.escapeTableCodePipes(html));
-      }
-      applyTheme();
-      updateStatus();
-      const initial = await api.appReady();
-      if (initial) {
-        loadDoc(null);
-        openPath(initial);
-      } else {
-        loadDoc(null);
-      }
-    },
-  });
+  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages });
+  updateStatus();
+  loadDoc(null);
+  const initial = await api.appReady();
+  if (initial) openPath(initial);
 })();

@@ -159,43 +159,34 @@ body {
   flex: 1;
   min-height: 0;
 }
-#editor.vditor {
-  border: 0;
-  border-radius: 0;
-}
-/* Typora 无工具栏；按钮仍保留在 DOM 中供命令调用 */
-#editor .vditor-toolbar {
-  display: none;
-}
-.vditor-content {
+#editor .cm-editor {
+  height: 100%;
   background: var(--bg);
+  color: var(--fg);
 }
-.vditor-reset {
+#editor .cm-editor.cm-focused {
+  outline: none;
+}
+#editor .cm-scroller {
+  overflow: auto;
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.75;
 }
 /* 正文居中、最大 860px；滚动条贴窗口右侧 */
-.vditor-ir pre.vditor-reset,
-.vditor-sv.vditor-reset {
-  padding: 40px max(48px, calc((100% - 860px) / 2)) 120px !important;
-  background: var(--bg);
+#editor .cm-content {
+  max-width: 956px;
+  margin: 0 auto;
+  padding: 40px 48px 120px;
+  caret-color: var(--fg);
+}
+#editor .cm-line {
+  padding: 0;
 }
 
-/* 专注模式（FR-008） */
-#editor.focus-mode .vditor-ir pre.vditor-reset > *,
-#editor.focus-mode .vditor-sv.vditor-reset > * {
-  opacity: 0.3;
-  transition: opacity 0.15s;
-}
-#editor.focus-mode .vditor-ir pre.vditor-reset > .im-active,
-#editor.focus-mode .vditor-sv.vditor-reset > .im-active {
-  opacity: 1;
-}
 /* 打字机模式：底部留白让最后一行也能居中 */
-#editor.typewriter-mode .vditor-ir pre.vditor-reset,
-#editor.typewriter-mode .vditor-sv.vditor-reset {
-  padding-bottom: 50vh !important;
+#editor.typewriter-mode .cm-content {
+  padding-bottom: 50vh;
 }
 
 /* ---------- 查找栏 ---------- */
