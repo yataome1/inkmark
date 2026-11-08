@@ -1,6 +1,6 @@
 // 公式、图表、代码高亮、图片地址：编辑器与导出共用（FR-604、FR-609）。
 // 依赖全局 katex、hljs；mermaid 体积大，首次用到时才加载。Node 中只提供纯函数供测试。
-/* global katex, hljs, mermaid */
+/* global CM, katex, hljs, mermaid */
 (function (root) {
   function renderMath(el, source, displayMode) {
     katex.render(source, el, { displayMode, throwOnError: false });
@@ -29,6 +29,32 @@
       }
     }
     return out.sort((a, b) => a.from - b.from || b.to - a.to);
+  }
+
+  let inlineMarkdown;
+  function mathInlineRule(state, silent) {
+    const { src, pos, posMax } = state;
+    if (src[pos] !== '$' || /[\s\d$]/.test(src[pos + 1] || ' ')) return false;
+    for (let i = pos + 1; i < posMax; i++) {
+      if (src[i] === '\\') i++;
+      else if (src[i] === '$') {
+        if (/\s/.test(src[i - 1])) return false;
+        if (!silent) state.push('math_inline', 'math', 0).content = src.slice(pos + 1, i);
+        state.pos = i + 1;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 表格单元格的排版显示：竖线转义先还原（GFM 在行内解析之前处理） */
+  function renderInline(text) {
+    if (!inlineMarkdown) {
+      inlineMarkdown = new CM.MarkdownIt({ html: false, linkify: false }).use(CM.markdownItMark);
+      inlineMarkdown.inline.ruler.after('escape', 'math_inline', mathInlineRule);
+      inlineMarkdown.renderer.rules.math_inline = (tokens, i) => katex.renderToString(tokens[i].content, { throwOnError: false });
+    }
+    return inlineMarkdown.renderInline(text.replace(/\\\|/g, '|'));
   }
 
   let mermaidReady;
@@ -87,7 +113,7 @@
     return { path: out.join('\\') };
   }
 
-  const api = { renderMath, highlightHtml, htmlToRanges, renderMermaid, resolveImage };
+  const api = { renderMath, renderInline, highlightHtml, htmlToRanges, renderMermaid, resolveImage };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Render = api;
 })(this);

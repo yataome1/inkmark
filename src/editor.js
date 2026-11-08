@@ -1,5 +1,5 @@
 // CodeMirror 6 编辑器（FR-601）：编辑状态即 Markdown 原文，换行统一为 LF（BOM、换行符由 doc-format.js 处理）。
-/* global CM */
+/* global CM, LivePreview */
 'use strict';
 
 (function (root) {
@@ -17,10 +17,9 @@
     placeholder,
   } = CM;
 
-  // 即时渲染扩展由 T608 接入；源代码模式下移除
-  const previewFor = (_source) => [];
-
-  function create(parent, { onChange, onPasteImages }) {
+  function create(parent, { onChange, onPasteImages, imageUrl }) {
+    // 源代码模式移除即时渲染，文本与选区不变（FR-607）
+    const previewFor = (isSource) => (isSource ? [] : LivePreview.extension({ imageUrl }));
     const mode = new Compartment();
     let source = false;
     let saved;
@@ -31,7 +30,7 @@
         extensions: [
           history({ newGroupDelay: 500 }), // FR-603
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-          markdown({ base: markdownLanguage }),
+          markdown({ base: markdownLanguage, extensions: LivePreview.syntax }),
           EditorView.lineWrapping,
           placeholder('开始写作…'),
           mode.of(previewFor(source)),
@@ -53,6 +52,8 @@
 
     const view = new EditorView({ parent, state: newState('') });
     saved = view.state.doc;
+
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => view.dispatch({ effects: LivePreview.refresh.of(null) }));
 
     return {
       dom: view.contentDOM,

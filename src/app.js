@@ -1,4 +1,4 @@
-/* global Editor, TextUtils, DocFormat, Finder, ExportHtml */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml */
 'use strict';
 
 const api = window.inkmark;
@@ -69,28 +69,14 @@ function onChange() {
   findStale = true;
 }
 
-// 以 file:/// 绝对地址引用的本地图片（如未保存文档中粘贴的图片）：页面无法直接加载，
-// 只在显示时改写为 asset 地址，不改动 Markdown 文本
-async function showFileImage(img) {
-  const src = img.getAttribute('src') || '';
-  if (!src.startsWith('file:')) return;
-  const path = decodeURIComponent(new URL(src).pathname).replace(/^\/([A-Za-z]:)/, '$1');
-  try {
-    await api.allowImage(path);
-    img.src = api.toAssetUrl(path);
-  } catch {
-    // 非图片或无法访问：保持原样
-  }
+// 图片只在显示时转换为 asset 地址，不改动 Markdown 文本（FR-011）
+async function imageUrl(src) {
+  const r = Render.resolveImage(src, state.path ? dirname(state.path) : null);
+  if (!r) return null;
+  if (r.url) return r.url;
+  await api.allowImage(r.path);
+  return api.toAssetUrl(r.path);
 }
-new MutationObserver((records) => {
-  for (const r of records) {
-    for (const n of r.addedNodes) {
-      if (n.nodeType !== 1) continue;
-      if (n.tagName === 'IMG') showFileImage(n);
-      else n.querySelectorAll('img[src^="file:"]').forEach(showFileImage);
-    }
-  }
-}).observe(editorEl, { childList: true, subtree: true });
 
 function loadDoc(doc) {
   state.path = doc ? doc.path : null;
@@ -504,8 +490,7 @@ editorEl.addEventListener(
   'click',
   (e) => {
     if (!e.ctrlKey) return;
-    const a = e.target.closest('[data-type="a"]');
-    const url = a && a.querySelector('.vditor-ir__marker--link')?.textContent.trim();
+    const url = e.target.closest('[data-href]')?.dataset.href;
     if (!url) return;
     e.preventDefault();
     if (/^https?:/i.test(url)) api.openExternal(url);
@@ -559,7 +544,7 @@ api.onCloseRequested(async (e) => {
   applySidebar();
   if (state.settings.folder) showFolder(state.settings.folder);
 
-  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages });
+  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
   updateStatus();
   loadDoc(null);
   const initial = await api.appReady();
