@@ -29,6 +29,7 @@
 ## 设计要点
 - Mermaid 12 随包版本默认 `layout: 'elk'`，该布局会把 `flowchart.curve` 改成圆角折线，因此必须同时指定 `layout: 'dagre'`。
 - `renderMermaid(source, theme)` 的 `theme` 仍是 `default` / `dark`，缓存键与调用方不变，只在初始化时映射到配色。
+- 时序图节点的阴影由 Mermaid 写在 `filter` 属性上，主题变量无法关闭，用 `themeCSS` 覆盖，导出同样生效。
 
 ## IPC 契约变更
 无。

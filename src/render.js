@@ -123,10 +123,13 @@
             startOnLoad: false,
             securityLevel: 'strict',
             theme: 'base',
+            themeCSS: 'rect.actor { filter: none; }', // FR-704：时序图阴影写在 SVG 属性上，dropShadow 变量管不到
             layout: 'dagre',
             flowchart: { curve: 'basis', nodeSpacing: 60, rankSpacing: 60, padding: 16 },
             themeVariables: {
               ...MERMAID_COLORS[theme],
+              pieStrokeColor: MERMAID_COLORS[theme].primaryBorderColor,
+              pieOuterStrokeColor: MERMAID_COLORS[theme].primaryBorderColor,
               clusterBkg: 'transparent',
               useGradient: false,
               dropShadow: 'none',
