@@ -400,8 +400,19 @@ body.resizing {
   position: relative;
 }
 #editor {
+  position: relative;
   flex: 1;
   min-height: 0;
+}
+.im-scroll-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+}
+.im-scroll-grip[hidden] {
+  display: none;
 }
 #start-page {
   flex: 1;

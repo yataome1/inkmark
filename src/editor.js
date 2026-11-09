@@ -1,5 +1,5 @@
 // CodeMirror 6 编辑器（FR-601）：编辑状态即 Markdown 原文，换行统一为 LF（BOM、换行符由 doc-format.js 处理）。
-/* global CM, LivePreview, Finder, TableUtils */
+/* global CM, LivePreview, Finder, TableUtils, Scrollbar */
 'use strict';
 
 (function (root) {
@@ -222,6 +222,7 @@
     let current = createDoc('');
     const view = new EditorView({ parent, state: current.state });
     const docOf = (doc) => (doc === current ? view.state.doc : doc.state.doc);
+    Scrollbar.attach(view.scrollDOM, view.contentDOM, parent);
 
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       current.dark = isDark();
