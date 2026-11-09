@@ -18,6 +18,8 @@ const REPO_URL: &str = "https://github.com/yataome1/inkmark";
 struct AppState {
     settings: Mutex<settings::Settings>,
     initial_file: Mutex<Option<String>>,
+    /// 当前文件是否已收藏、当前文件能否收藏（已保存），决定“文件”菜单的文字与可用状态
+    favorite_menu: Mutex<(bool, bool)>,
 }
 
 #[derive(Serialize)]
@@ -55,7 +57,8 @@ fn refresh_menu(app: &AppHandle) {
         let s = state.settings.lock().unwrap();
         (s.recent(), s.theme().to_string())
     };
-    if let Ok(m) = menu::build(app, &recent, &theme, &sample_path(app)) {
+    let favorite = *state.favorite_menu.lock().unwrap();
+    if let Ok(m) = menu::build(app, &recent, &theme, &sample_path(app), favorite) {
         let _ = app.set_menu(m);
     }
 }
@@ -107,6 +110,17 @@ fn save_file(app: AppHandle, state: State<AppState>, path: String, content: Stri
 #[tauri::command]
 fn path_info(paths: Vec<String>) -> Vec<fileops::PathInfo> {
     fileops::path_info(&paths)
+}
+
+#[tauri::command]
+fn set_favorite_menu(app: AppHandle, state: State<AppState>, favorited: bool, enabled: bool) {
+    let changed = {
+        let mut current = state.favorite_menu.lock().unwrap();
+        std::mem::replace(&mut *current, (favorited, enabled)) != (favorited, enabled)
+    };
+    if changed {
+        refresh_menu(&app);
+    }
 }
 
 #[tauri::command]
@@ -226,6 +240,7 @@ pub fn run() {
             save_file,
             list_dir,
             path_info,
+            set_favorite_menu,
             save_image,
             save_image_from_path,
             allow_image,
@@ -244,6 +259,7 @@ pub fn run() {
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 initial_file: Mutex::new(file_from_args(&args, &cwd)),
+                favorite_menu: Mutex::new((false, false)),
             });
 
             let handle = app.handle().clone();

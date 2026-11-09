@@ -20,18 +20,18 @@
 - [x] T212 [US1] 性能与隔离实测：长文档中表格操作 < 50ms，其他块 DOM 不变（NFR-202、FR-216）
 
 ## 阶段 3：用户故事 2 —— 侧边栏分割线 (P1)
-- [ ] T213 [US2] `src/resizer.js`：悬停高亮、拖动、范围限制、阈值收起/拖出展开、双击复位、键盘、持久化、窗口缩放收窄
+- [x] T213 [US2] `src/resizer.js`：悬停高亮、拖动、范围限制、阈值收起/拖出展开、双击复位、键盘、持久化、窗口缩放收窄
 
 ## 阶段 4：用户故事 3 —— 收藏夹 (P1)
-- [ ] T214 [US3] 侧边栏“收藏”页与 `Ctrl+Shift+2`；`src/favorites.js` 列表渲染（图标、名称、父目录、当前文件高亮、不存在标记、空状态）
-- [ ] T215 [US3] 添加入口：文件树与根文件夹 ☆/★、右键菜单、“收藏当前文件”命令
-- [ ] T216 [US3] 打开（文件/文件夹）、× 移除、键盘操作
-- [ ] T217 [US3] 拖动排序（Pointer Events，4px 阈值、指示线）与持久化
+- [x] T214 [US3] 侧边栏“收藏”页与 `Ctrl+Shift+2`；`src/favorites.js` 列表渲染（图标、名称、父目录、当前文件高亮、不存在标记、空状态）
+- [x] T215 [US3] 添加入口：文件树与根文件夹 ☆/★、右键菜单、“收藏当前文件”命令
+- [x] T216 [US3] 打开（文件/文件夹）、× 移除、键盘操作
+- [x] T217 [US3] 拖动排序（Pointer Events，4px 阈值、指示线）与持久化
 
 ## 阶段 5：文档与验证
-- [ ] T220 更新 README（特性、快捷键）、CHANGELOG、`resources/samples/demo.md`（表格说明）
-- [ ] T221 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
-- [ ] T222 按 spec 验收场景逐条验证 + 006 清单回归，记录于 `checklist.md`；release 构建确认安装包 ≤ 10MB
+- [x] T220 更新 README（特性、快捷键）、CHANGELOG、`resources/samples/demo.md`（表格说明）
+- [x] T221 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
+- [x] T222 按 spec 验收场景逐条验证 + 006 清单回归，记录于 `checklist.md`；release 构建确认安装包 ≤ 10MB
 
 ## 依赖
 阶段 1 → 阶段 2、3、4（彼此独立）→ 阶段 5。T204–T205 先于 T206–T211。

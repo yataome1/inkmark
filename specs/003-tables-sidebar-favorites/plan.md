@@ -80,6 +80,7 @@ test/table-utils.test.js  新
 | 方法 | 方向 | 说明 |
 |---|---|---|
 | `pathInfo(paths)` → `{exists, dir}[]` | 前端→后端 | 新增 Rust 命令 `path_info` |
+| `setFavoriteMenu(favorited, enabled)` | 前端→后端 | 新增 Rust 命令 `set_favorite_menu`：更新“文件”菜单中收藏项的文字与可用状态（US3-4） |
 | 菜单命令 `toggle-favorite-current`、`sidebar-favorites` | 后端→前端 | 新增 |
 
 ## 风险

@@ -52,6 +52,7 @@ body {
 /* ---------- 侧边栏 ---------- */
 #sidebar {
   width: 260px;
+  min-width: 0;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -91,11 +92,6 @@ body {
   padding: 4px 14px 8px;
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.folder-name:empty {
-  display: none;
 }
 .link-button {
   margin: 8px 14px;
@@ -150,6 +146,113 @@ body {
 }
 .outline .empty:hover {
   background: none;
+}
+
+/* ---------- 分割线 ---------- */
+#resizer {
+  flex: none;
+  position: relative;
+  z-index: 20;
+  width: 6px;
+  margin: 0 -3px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+#app.no-sidebar #resizer {
+  margin: 0 -6px 0 0;
+}
+#resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 0.1s 0.15s;
+}
+#resizer:hover::after,
+#resizer:focus-visible::after,
+body.resizing #resizer::after {
+  background: var(--accent);
+}
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* ---------- 收藏与星标 ---------- */
+.tree .row .name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.star,
+.tree .remove {
+  flex: none;
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  visibility: hidden;
+}
+.row:hover .star,
+.folder-name:hover .star,
+.star.on,
+.row:hover .remove,
+.row:focus-visible .remove {
+  visibility: visible;
+}
+.star.on {
+  color: #e8a73c;
+}
+.folder-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.folder-name[hidden] {
+  display: none;
+}
+.folder-name .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.favorites {
+  position: relative;
+}
+.favorites .row {
+  outline: none;
+}
+.favorites .row:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.favorites .icon {
+  width: auto;
+}
+.favorites .parent {
+  flex: 0 10 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+.favorites .row.missing {
+  opacity: 0.45;
+}
+.favorites .row.dragging {
+  opacity: 0.5;
+}
+.favorites .hint {
+  white-space: normal;
+  line-height: 1.6;
 }
 
 /* ---------- 主区域 ---------- */

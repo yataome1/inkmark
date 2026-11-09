@@ -38,6 +38,7 @@
     saveAs,
     listDir: (dir) => invoke('list_dir', { dir }),
     pathInfo: (paths) => invoke('path_info', { paths }),
+    setFavoriteMenu: (favorited, enabled) => invoke('set_favorite_menu', { favorited, enabled }),
     saveImage: (docPath, name, bytes) => invoke('save_image', { docPath, name, bytes: Array.from(bytes) }),
     saveImageFromPath: (docPath, srcPath) => invoke('save_image_from_path', { docPath, srcPath }),
     allowImage: (path) => invoke('allow_image', { path }),
