@@ -180,10 +180,9 @@
     const mode = new Compartment();
     const focusConf = new Compartment();
     const typewriterConf = new Compartment();
-    let source = false;
     let focusOn = false;
     let typewriterOn = false;
-    let saved;
+    const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 
     const newState = (doc) =>
       EditorState.create({
@@ -194,7 +193,7 @@
           markdown({ base: markdownLanguage, extensions: LivePreview.syntax }),
           EditorView.lineWrapping,
           placeholder('开始写作…'),
-          mode.of(previewFor(source)),
+          mode.of(previewFor(false)),
           focusConf.of(focusOn ? focusMode : []),
           typewriterConf.of(typewriterOn ? typewriterMode : []),
           Finder.extension,
@@ -214,10 +213,40 @@
         ],
       });
 
-    const view = new EditorView({ parent, state: newState('') });
-    saved = view.state.doc;
+    /** 一个标签的编辑进度：EditorState 含文档、选区和撤销历史（FR-803） */
+    function createDoc(text) {
+      const state = newState(text);
+      return { state, saved: state.doc, source: false, scroll: null, dark: isDark(), focusOn, typewriterOn };
+    }
 
-    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => view.dispatch({ effects: LivePreview.refresh.of(null) }));
+    let current = createDoc('');
+    const view = new EditorView({ parent, state: current.state });
+    const docOf = (doc) => (doc === current ? view.state.doc : doc.state.doc);
+
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      current.dark = isDark();
+      view.dispatch({ effects: LivePreview.refresh.of(null) });
+    });
+
+    /** 换入另一个文档；未激活的文档只保留状态，不占用 DOM（NFR-802） */
+    function activate(doc) {
+      if (doc === current) return;
+      current.state = view.state;
+      current.scroll = view.scrollSnapshot();
+      current = doc;
+      LivePreview.clearJump();
+      view.setState(doc.state);
+      const effects = [];
+      if (doc.focusOn !== focusOn) effects.push(focusConf.reconfigure(focusOn ? focusMode : []));
+      if (doc.typewriterOn !== typewriterOn) effects.push(typewriterConf.reconfigure(typewriterOn ? typewriterMode : []));
+      if (doc.dark !== isDark()) effects.push(LivePreview.refresh.of(null));
+      doc.focusOn = focusOn;
+      doc.typewriterOn = typewriterOn;
+      doc.dark = isDark();
+      if (doc.scroll) effects.push(doc.scroll);
+      else view.scrollDOM.scrollTop = 0;
+      if (effects.length) view.dispatch({ effects });
+    }
 
     return {
       dom: view.contentDOM,
@@ -226,29 +255,29 @@
       ),
       setFocusMode(on) {
         focusOn = on;
+        current.focusOn = on;
         view.dispatch({ effects: focusConf.reconfigure(on ? focusMode : []) });
       },
       setTypewriterMode(on) {
         typewriterOn = on;
+        current.typewriterOn = on;
         view.dispatch({ effects: typewriterConf.reconfigure(on ? typewriterMode : []) });
       },
       view,
       getValue: () => view.state.doc.toString(),
       getSelectionText: () => view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to),
-      /** 载入新文档：新状态同时清空撤销历史（FR-603） */
-      load(text) {
-        view.setState(newState(text));
-        saved = view.state.doc;
-        view.scrollDOM.scrollTop = 0;
-      },
-      isDirty: () => !saved.eq(view.state.doc),
+      createDoc,
+      activate,
+      docText: (doc) => docOf(doc).toString(),
+      isDocDirty: (doc) => !doc.saved.eq(docOf(doc)),
+      isDirty: () => !current.saved.eq(view.state.doc),
       markSaved() {
-        saved = view.state.doc;
+        current.saved = view.state.doc;
       },
-      isSource: () => source,
+      isSource: () => current.source,
       toggleSource() {
-        source = !source;
-        view.dispatch({ effects: mode.reconfigure(previewFor(source)) });
+        current.source = !current.source;
+        view.dispatch({ effects: mode.reconfigure(previewFor(current.source)) });
       },
       insert(text) {
         isolated(view, () => view.dispatch(view.state.replaceSelection(text), { scrollIntoView: true }));

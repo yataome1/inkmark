@@ -1088,6 +1088,7 @@
     visibleText,
     jumpTo,
     isHidden,
+    clearJump: () => (jump = null),
     isDragging: () => dragging,
     setDragging(value) {
       dragging = value;

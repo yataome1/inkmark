@@ -44,9 +44,107 @@ body {
   font-size: 14px;
 }
 
+body {
+  display: flex;
+  flex-direction: column;
+}
+
 #app {
   display: flex;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- 标签栏（specs/008） ---------- */
+#tabbar {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 4px 8px 0;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+}
+.tab-strip {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab {
+  display: flex;
+  flex: 0 1 auto;
+  width: 200px;
+  align-items: center;
+  gap: 6px;
+  min-width: 96px;
+  height: 30px;
+  padding: 0 10px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: default;
+  user-select: none;
+}
+.tab:hover {
+  background: var(--hover);
+}
+.tab.active {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--fg);
+}
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+}
+.tab.dirty .tab-mark {
+  background: var(--accent);
+}
+.tab.flash {
+  animation: tab-flash 0.5s ease-out;
+}
+@keyframes tab-flash {
+  from {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+.tab-add {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+.tab-add:hover {
+  background: var(--hover);
+  color: var(--fg);
 }
 
 /* ---------- 侧边栏 ---------- */

@@ -1,14 +1,29 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs */
 'use strict';
 
 const api = window.inkmark;
 const $ = (sel) => document.querySelector(sel);
 const editorEl = $('#editor');
 
+// 当前文档的 path（未命名为 null）、format（打开时的 BOM 与换行符，保存时还原，FR-602）、dirty 属于当前标签
 const state = {
-  path: null, // 当前文件路径，未命名为 null
-  format: { bom: false, eol: '\n' }, // 打开时的 BOM 与换行符，保存时还原（FR-602）
-  dirty: false,
+  get path() {
+    return tabs.current.path;
+  },
+  set path(value) {
+    tabs.current.path = value;
+    tabs.render();
+  },
+  get format() {
+    return tabs.current.format;
+  },
+  get dirty() {
+    return tabs.current.dirty;
+  },
+  set dirty(value) {
+    tabs.current.dirty = value;
+    tabs.update(tabs.current);
+  },
   settings: null,
   focus: false,
   typewriter: false,
@@ -19,7 +34,8 @@ let editor;
 
 const basename = (p) => p.split(/[\\/]/).pop();
 const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
-const docName = () => (state.path ? basename(state.path) : '未命名');
+const tabTitle = (tab) => (tab.path ? basename(tab.path) : `未命名-${tab.untitledNo}`);
+const docName = () => tabTitle(tabs.current);
 const isMarkdownPath = (p) => /\.(md|markdown|mdown|txt)$/i.test(p);
 
 function resolvePath(base, rel) {
@@ -56,12 +72,7 @@ function refreshDirty() {
   }
 }
 
-const refreshPanels = debounce(() => {
-  const md = editor.getValue();
-  const { words, chars } = TextUtils.countWords(md);
-  $('#status-count').textContent = `${words} 词 · ${chars} 字符`;
-  renderOutline(md);
-}, 250);
+const refreshPanels = debounce(() => updatePanels(), 250);
 
 function onChange() {
   refreshDirty();
@@ -79,26 +90,74 @@ async function imageUrl(src) {
   return api.toAssetUrl(r.path);
 }
 
-function loadDoc(doc) {
-  state.path = doc ? doc.path : null;
-  const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
-  state.format = { bom, eol };
-  editor.load(body);
-  state.dirty = false;
+function updatePanels() {
+  const md = editor.getValue();
+  const { words, chars } = TextUtils.countWords(md);
+  $('#status-count').textContent = `${words} 词 · ${chars} 字符`;
+  renderOutline(md);
+}
+
+// ---------------------------------------------------------------- 标签（specs/008）
+
+const tabs = Tabs.create({ bar: $('#tabbar'), onSelect: showTab, onNew: newTab, title: tabTitle });
+
+function showTab(tab) {
+  editor.activate(tab.doc);
+  tabs.select(tab);
   updateTitle();
-  refreshPanels();
+  updatePanels();
   highlightTreeCurrent();
+  updateStatus();
+  if (!findbar.hidden) refreshFind();
+  else if (Finder.ranges(editor.view.state).length) Finder.clear(editor.view);
   editor.focus();
-  if (!findbar.hidden) runFind();
+}
+
+function docFields(doc) {
+  const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
+  return {
+    path: doc ? TabUtils.normalizePath(doc.path) : null,
+    untitledNo: doc ? 0 : TabUtils.nextUntitled(tabs.list.map((t) => t.untitledNo)),
+    format: { bom, eol },
+    doc: editor.createDoc(body),
+    dirty: false,
+  };
+}
+
+/** 新建未命名标签，放在当前标签右侧（US1-4） */
+function newTab() {
+  const tab = docFields(null);
+  tabs.insert(tab, tabs.list.indexOf(tabs.current) + 1);
+  showTab(tab);
+}
+
+/** 在新标签中显示已读取的文档；已打开时切换到已有标签；唯一的空白标签被复用（FR-802） */
+function showDoc(doc) {
+  const existing = tabs.find(TabUtils.pathKey(doc.path));
+  if (existing) {
+    showTab(existing);
+    tabs.flash(existing);
+    return;
+  }
+  const only = tabs.list.length === 1 && tabs.list[0];
+  if (only && !only.path && !editor.isDocDirty(only.doc)) {
+    Object.assign(only, docFields(doc));
+    tabs.render();
+    showTab(only);
+    return;
+  }
+  const tab = docFields(doc);
+  tabs.insert(tab);
+  showTab(tab);
 }
 
 async function save(as = false) {
   const content = DocFormat.join(editor.getValue(), state.format);
-  const suggested = state.path || '未命名.md';
-  const p = as ? await api.saveAs(content, suggested) : await api.saveFile(state.path, content);
+  const suggested = state.path || `${docName()}.md`;
+  const p = as || !state.path ? await api.saveAs(content, suggested) : await api.saveFile(state.path, content);
   if (!p) return false;
   if (p !== state.path) {
-    state.path = p;
+    state.path = TabUtils.normalizePath(p);
     highlightTreeCurrent();
   }
   editor.markSaved();
@@ -117,8 +176,9 @@ async function confirmLeave() {
   return choice === 'discard';
 }
 
-async function openPath(p) {
-  if (p === state.path) return;
+async function readAndShow(p) {
+  const existing = tabs.find(TabUtils.pathKey(p));
+  if (existing) return showDoc(existing);
   let doc;
   try {
     doc = await api.readFile(p);
@@ -128,7 +188,14 @@ async function openPath(p) {
     state.settings = await api.setSettings({ recent });
     return;
   }
-  if (await confirmLeave()) loadDoc(doc);
+  showDoc(doc);
+}
+
+// 打开请求排队，连续打开多个文件时顺序不交错
+let openQueue = Promise.resolve();
+function openPath(p) {
+  openQueue = openQueue.then(() => readAndShow(p));
+  return openQueue;
 }
 
 // ---------------------------------------------------------------- 排版命令（FR-012）
@@ -448,10 +515,10 @@ const COMMANDS = {
   table: insertTable,
   'table-insert-row': () => TableUi.command('table-insert-row'),
   'table-delete-row': () => TableUi.command('table-delete-row'),
-  new: async () => (await confirmLeave()) && loadDoc(null),
+  new: newTab,
   open: async () => {
     const doc = await api.openDialog();
-    if (doc && (await confirmLeave())) loadDoc(doc);
+    if (doc) showDoc(doc);
   },
   'open-path': openPath,
   'open-folder': async () => {
@@ -583,8 +650,8 @@ editorEl.addEventListener(
 // 拖入 Markdown 文件则打开；拖入图片则保存到 assets/ 并插入（FR-001、FR-011）
 api.onDragDrop(async ({ type, paths }) => {
   if (type !== 'drop' || !paths?.length || !editor) return;
-  const md = paths.find(isMarkdownPath);
-  if (md) return openPath(md);
+  const docs = paths.filter(isMarkdownPath);
+  if (docs.length) return Promise.all(docs.map(openPath));
   for (const p of paths) {
     try {
       const src = await api.saveImageFromPath(state.path, p);
@@ -615,18 +682,22 @@ $('#open-folder').addEventListener('click', () => run('open-folder'));
 api.onCommand(({ cmd, arg }) => run(cmd, arg));
 api.onOpenFile((p) => run('open-path', p));
 api.onCloseRequested(async (e) => {
-  if (!(await confirmLeave())) e.preventDefault();
+  for (const tab of [...tabs.list]) {
+    if (!editor.isDocDirty(tab.doc)) continue;
+    showTab(tab);
+    if (!(await confirmLeave())) return e.preventDefault();
+  }
 });
 
 (async () => {
   state.settings = await api.getSettings();
+  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
+  const first = docFields(null);
+  tabs.insert(first);
+  showTab(first);
   applySidebar();
   if (state.settings.folder) showFolder(state.settings.folder);
   refreshStars();
-
-  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
-  updateStatus();
-  loadDoc(null);
   const initial = await api.appReady();
   if (initial) openPath(initial);
 })();
