@@ -9,15 +9,15 @@
 - [x] T203 [P] Rust：`menu.rs` 增加“收藏/取消收藏当前文件”“视图 → 收藏”；`platform.js` 增加 `pathInfo`
 
 ## 阶段 2：用户故事 1 —— 表格编辑 (P1)
-- [ ] T204 [US1] `src/table-utils.js`：`parseTable`、`formatTable`（显示宽度、转义 `|`、行内代码）+ `test/table-utils.test.js`
-- [ ] T205 [US1] `table-utils.js`：增删/移动行列、对齐、调整大小、新建表格 + 测试（含 FR-207 约束）
-- [ ] T206 [US1] `src/table.js`：`applyTableEdit` —— 只替换当前表格的文字、一步撤销、聚焦目标单元格
-- [ ] T207 [US1] 尺寸选择器（插入表格与调整大小共用），替换 `Ctrl+T` 的旧行为
-- [ ] T208 [US1] 表格工具条（调整大小、对齐、删除表格、更多）
-- [ ] T209 [US1] 单元格右键菜单（含置灰规则）
-- [ ] T210 [US1] 表格快捷键：`Ctrl+Enter`、`Ctrl+Shift+Backspace`、`Tab`/`Shift+Tab`、最后单元格 `Tab`
-- [ ] T211 [US1] 行/列拖动手柄与指示线（Pointer Events）
-- [ ] T212 [US1] 性能与隔离实测：长文档中表格操作 < 50ms，其他块 DOM 不变（NFR-202、FR-216）
+- [x] T204 [US1] `src/table-utils.js`：`parseTable`、`formatTable`（显示宽度、转义 `|`、行内代码）+ `test/table-utils.test.js`
+- [x] T205 [US1] `table-utils.js`：增删/移动行列、对齐、调整大小、新建表格 + 测试（含 FR-207 约束）
+- [x] T206 [US1] `src/table.js`：`applyTableEdit` —— 只替换当前表格的文字、一步撤销、聚焦目标单元格
+- [x] T207 [US1] 尺寸选择器（插入表格与调整大小共用），替换 `Ctrl+T` 的旧行为
+- [x] T208 [US1] 表格工具条（调整大小、对齐、删除表格、更多）
+- [x] T209 [US1] 单元格右键菜单（含置灰规则）
+- [x] T210 [US1] 表格快捷键：`Ctrl+Enter`、`Ctrl+Shift+Backspace`、`Tab`/`Shift+Tab`、最后单元格 `Tab`
+- [x] T211 [US1] 行/列拖动手柄与指示线（Pointer Events）
+- [x] T212 [US1] 性能与隔离实测：长文档中表格操作 < 50ms，其他块 DOM 不变（NFR-202、FR-216）
 
 ## 阶段 3：用户故事 2 —— 侧边栏分割线 (P1)
 - [ ] T213 [US2] `src/resizer.js`：悬停高亮、拖动、范围限制、阈值收起/拖出展开、双击复位、键盘、持久化、窗口缩放收窄

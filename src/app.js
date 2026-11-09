@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi */
 'use strict';
 
 const api = window.inkmark;
@@ -149,7 +149,6 @@ const FORMAT = Object.fromEntries(
     'check',
     'code-block',
     'math-block',
-    'table',
     'line',
   ].map((name) => [name, (arg) => editor.format[name](arg)]),
 );
@@ -358,7 +357,20 @@ async function exportAs(kind) {
 
 // ---------------------------------------------------------------- 命令表
 
+function insertTable() {
+  editor.focus();
+  const { view } = editor;
+  const at = view.coordsAtPos(view.state.selection.main.head, -1) || { left: 200, bottom: 200 };
+  TableUi.openPicker(at.left, at.bottom + 4, { rows: 3, cols: 3 }, (rows, cols) => {
+    editor.format.table({ rows, cols });
+    if (!editor.isSource()) TableUi.focusTableAt(view, view.state.selection.main.from);
+  });
+}
+
 const COMMANDS = {
+  table: insertTable,
+  'table-insert-row': () => TableUi.command('table-insert-row'),
+  'table-delete-row': () => TableUi.command('table-delete-row'),
   new: async () => (await confirmLeave()) && loadDoc(null),
   open: async () => {
     const doc = await api.openDialog();
@@ -442,6 +454,8 @@ const KEYMAP = {
   'Ctrl+Shift+KeyK': ['code-block'],
   'Ctrl+Shift+KeyM': ['math-block'],
   'Ctrl+KeyT': ['table'],
+  'Ctrl+Enter': ['table-insert-row'],
+  'Ctrl+Shift+Backspace': ['table-delete-row'],
   'Ctrl+Shift+Minus': ['line'],
   'Ctrl+Slash': ['source-mode'],
   'Ctrl+Shift+KeyL': ['toggle-sidebar'],
@@ -460,6 +474,7 @@ window.addEventListener(
     const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
     const hit = KEYMAP[key];
     if (!hit || !editor) return;
+    if (hit[0].startsWith('table-') && !TableUi.isActive()) return; // 只在表格单元格内生效
     if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
     e.preventDefault();
     e.stopPropagation();
