@@ -88,6 +88,11 @@
   let queue = Promise.resolve(); // mermaid.render 不可并发
   let renderId = 0;
   let initializedTheme;
+  // FR-705：同一色系，相邻扇区深浅交替
+  const MERMAID_PIE = {
+    default: '#a5b4fc #e0e7ff #c4b5fd #bfdbfe #d8b4fe #ede9fe #93c5fd #e9d5ff #c7d2fe #f5d0fe #a5c8fd #ddd6fe',
+    dark: '#4c4fa8 #2f3167 #624a9c #2f4a80 #6c4292 #3d2f73 #375594 #54357f #414a9a #723a6e #2a5e86 #5a3f8f',
+  };
   const MERMAID_COLORS = {
     default: {
       primaryColor: '#eeeefd',
@@ -128,6 +133,7 @@
             flowchart: { curve: 'basis', nodeSpacing: 60, rankSpacing: 60, padding: 16 },
             themeVariables: {
               ...MERMAID_COLORS[theme],
+              ...Object.fromEntries(MERMAID_PIE[theme].split(' ').map((color, i) => [`pie${i + 1}`, color])),
               pieStrokeColor: MERMAID_COLORS[theme].primaryBorderColor,
               pieOuterStrokeColor: MERMAID_COLORS[theme].primaryBorderColor,
               clusterBkg: 'transparent',
