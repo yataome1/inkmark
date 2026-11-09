@@ -88,6 +88,26 @@
   let queue = Promise.resolve(); // mermaid.render 不可并发
   let renderId = 0;
   let initializedTheme;
+  const MERMAID_COLORS = {
+    default: {
+      primaryColor: '#eeeefd',
+      primaryBorderColor: '#d2d2f4',
+      primaryTextColor: '#333333',
+      lineColor: '#6366f1',
+      clusterBorder: '#d2d2f4',
+      edgeLabelBackground: '#ffffff',
+    },
+    dark: {
+      darkMode: true,
+      background: '#1e1f22',
+      primaryColor: '#2c2e45',
+      primaryBorderColor: '#45486b',
+      primaryTextColor: '#d4d6da',
+      lineColor: '#8b8ef5',
+      clusterBorder: '#45486b',
+      edgeLabelBackground: '#1e1f22',
+    },
+  };
 
   /** 渲染 Mermaid 为 SVG 字符串，语法错误时 reject；同一主题下相同源码只渲染一次 */
   function renderMermaid(source, theme) {
@@ -98,7 +118,21 @@
       .then(loadMermaid)
       .then(async () => {
         if (initializedTheme !== theme) {
-          mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme });
+          // FR-701、FR-702：随包版本默认 elk 布局，会忽略 curve，须指定 dagre
+          mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: 'strict',
+            theme: 'base',
+            layout: 'dagre',
+            flowchart: { curve: 'basis', nodeSpacing: 60, rankSpacing: 60, padding: 16 },
+            themeVariables: {
+              ...MERMAID_COLORS[theme],
+              clusterBkg: 'transparent',
+              useGradient: false,
+              dropShadow: 'none',
+              nodeShadow: false,
+            },
+          });
           initializedTheme = theme;
         }
         return (await mermaid.render(`im-mermaid-${renderId++}`, source)).svg;

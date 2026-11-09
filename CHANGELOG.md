@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 变更
+
+- Mermaid 图表改用平滑曲线和浅色、深色配色，去掉黄色分组底色与节点阴影（[007](specs/007-mermaid-look/spec.md)）。
+
 ## [0.4.0] - 2026-11-09
 
 实现规格 [003-tables-sidebar-favorites](specs/003-tables-sidebar-favorites/spec.md)。
