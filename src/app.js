@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu */
 'use strict';
 
 const api = window.inkmark;
@@ -149,7 +149,6 @@ const FORMAT = Object.fromEntries(
     'check',
     'code-block',
     'math-block',
-    'table',
     'line',
   ].map((name) => [name, (arg) => editor.format[name](arg)]),
 );
@@ -157,12 +156,19 @@ const FORMAT = Object.fromEntries(
 // ---------------------------------------------------------------- 视图命令
 
 function applySidebar() {
-  const { visible, tab } = state.settings.sidebar;
-  $('#app').classList.toggle('no-sidebar', !visible);
+  const { tab } = state.settings.sidebar;
+  resizer.apply();
   document.querySelectorAll('.sidebar-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   $('#pane-files').classList.toggle('active', tab === 'files');
+  $('#pane-favorites').classList.toggle('active', tab === 'favorites');
   $('#pane-outline').classList.toggle('active', tab === 'outline');
+  if (tab === 'favorites') favorites.render(); // 重新检查路径是否存在
 }
+
+const resizer = Resizer.init({
+  getSidebar: () => state.settings.sidebar,
+  save: (patch) => setSidebar(patch),
+});
 
 async function setSidebar(patch) {
   state.settings = await api.setSettings({ sidebar: { ...state.settings.sidebar, ...patch } });
@@ -213,8 +219,11 @@ function scrollToHeading(i) {
 // ---------------------------------------------------------------- 文件树（FR-007）
 
 async function showFolder(folder) {
-  $('#folder-name').textContent = basename(folder);
-  $('#folder-name').title = folder;
+  const header = $('#folder-name');
+  header.hidden = false;
+  header.title = folder;
+  header.dataset.path = folder;
+  header.querySelector('.name').textContent = basename(folder);
   const tree = $('#tree');
   tree.replaceChildren();
   await fillDir(tree, folder);
@@ -244,7 +253,11 @@ async function fillDir(ul, dir) {
       const icon = document.createElement('span');
       icon.className = 'icon';
       icon.textContent = e.dir ? '▸' : '';
-      row.append(icon, e.name);
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = e.name;
+      row.append(icon, name, starButton(e.path, e.dir));
+      row.addEventListener('contextmenu', (ev) => favoriteMenu(ev, e.path, e.dir));
       li.append(row);
       if (e.dir) {
         const sub = document.createElement('ul');
@@ -267,7 +280,70 @@ async function fillDir(ul, dir) {
   );
 }
 
+// ---------------------------------------------------------------- 收藏夹（FR-210..214）
+
+const favorites = Favorites.create({
+  list: $('#favorites'),
+  getList: () => state.settings.favorites,
+  saveList: async (list) => {
+    state.settings = await api.setSettings({ favorites: list });
+  },
+  pathInfo: api.pathInfo,
+  openFile: (p) => openPath(p),
+  openFolder: async (p) => {
+    await showFolder(p);
+    state.settings = await api.setSettings({ folder: p });
+    await setSidebar({ visible: true, tab: 'files' });
+  },
+  currentPath: () => state.path,
+  onChange: refreshStars,
+});
+
+function setStar(button, path) {
+  const on = favorites.has(path);
+  button.textContent = on ? '★' : '☆';
+  button.classList.toggle('on', on);
+  button.title = on ? '从收藏中移除' : '添加到收藏';
+  button.setAttribute('aria-label', button.title);
+}
+
+function starButton(path, dir) {
+  const button = document.createElement('button');
+  button.className = 'star';
+  button.dataset.path = path;
+  button.tabIndex = -1;
+  setStar(button, path);
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    favorites.toggle(path, dir);
+  });
+  return button;
+}
+
+function refreshStars() {
+  document.querySelectorAll('#tree .star').forEach((b) => setStar(b, b.dataset.path));
+  const header = $('#folder-name');
+  if (header.dataset.path) setStar(header.querySelector('.star'), header.dataset.path);
+  updateFavoriteMenu();
+}
+
+function favoriteMenu(e, path, dir) {
+  e.preventDefault();
+  ContextMenu.show(e.clientX, e.clientY, [
+    { label: favorites.has(path) ? '从收藏中移除' : '添加到收藏', action: () => favorites.toggle(path, dir) },
+  ]);
+}
+
+function updateFavoriteMenu() {
+  api.setFavoriteMenu(!!state.path && favorites.has(state.path), !!state.path);
+}
+
+$('#folder-name .star').addEventListener('click', () => favorites.toggle($('#folder-name').dataset.path, true));
+$('#folder-name').addEventListener('contextmenu', (e) => favoriteMenu(e, $('#folder-name').dataset.path, true));
+
 function highlightTreeCurrent() {
+  favorites.markCurrent();
+  updateFavoriteMenu();
   document.querySelectorAll('#tree .row').forEach((r) => r.classList.toggle('current', r.dataset.path === state.path));
 }
 
@@ -358,7 +434,20 @@ async function exportAs(kind) {
 
 // ---------------------------------------------------------------- 命令表
 
+function insertTable() {
+  editor.focus();
+  const { view } = editor;
+  const at = view.coordsAtPos(view.state.selection.main.head, -1) || { left: 200, bottom: 200 };
+  TableUi.openPicker(at.left, at.bottom + 4, { rows: 3, cols: 3 }, (rows, cols) => {
+    editor.format.table({ rows, cols });
+    if (!editor.isSource()) TableUi.focusTableAt(view, view.state.selection.main.from);
+  });
+}
+
 const COMMANDS = {
+  table: insertTable,
+  'table-insert-row': () => TableUi.command('table-insert-row'),
+  'table-delete-row': () => TableUi.command('table-delete-row'),
   new: async () => (await confirmLeave()) && loadDoc(null),
   open: async () => {
     const doc = await api.openDialog();
@@ -382,6 +471,8 @@ const COMMANDS = {
   'toggle-sidebar': () => setSidebar({ visible: !state.settings.sidebar.visible }),
   'sidebar-outline': () => setSidebar({ visible: true, tab: 'outline' }),
   'sidebar-files': () => setSidebar({ visible: true, tab: 'files' }),
+  'sidebar-favorites': () => setSidebar({ visible: true, tab: 'favorites' }),
+  'toggle-favorite-current': () => state.path && favorites.toggle(state.path, false),
   'focus-mode': () => {
     state.focus = !state.focus;
     editor.setFocusMode(state.focus);
@@ -442,10 +533,13 @@ const KEYMAP = {
   'Ctrl+Shift+KeyK': ['code-block'],
   'Ctrl+Shift+KeyM': ['math-block'],
   'Ctrl+KeyT': ['table'],
+  'Ctrl+Enter': ['table-insert-row'],
+  'Ctrl+Shift+Backspace': ['table-delete-row'],
   'Ctrl+Shift+Minus': ['line'],
   'Ctrl+Slash': ['source-mode'],
   'Ctrl+Shift+KeyL': ['toggle-sidebar'],
   'Ctrl+Shift+Digit1': ['sidebar-outline'],
+  'Ctrl+Shift+Digit2': ['sidebar-favorites'],
   'Ctrl+Shift+Digit3': ['sidebar-files'],
   F8: ['focus-mode'],
   F9: ['typewriter-mode'],
@@ -460,6 +554,7 @@ window.addEventListener(
     const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
     const hit = KEYMAP[key];
     if (!hit || !editor) return;
+    if (hit[0].startsWith('table-') && !TableUi.isActive()) return; // 只在表格单元格内生效
     if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
     e.preventDefault();
     e.stopPropagation();
@@ -527,6 +622,7 @@ api.onCloseRequested(async (e) => {
   state.settings = await api.getSettings();
   applySidebar();
   if (state.settings.folder) showFolder(state.settings.folder);
+  refreshStars();
 
   editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
   updateStatus();

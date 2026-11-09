@@ -1,6 +1,6 @@
 // 即时渲染（FR-604、FR-605）：只用装饰改变显示，文档文本不变。
 // 行内元素由 ViewPlugin 按可视区域计算；块级小部件必须由 StateField 提供。
-/* global CM, Render, Anchor, Finder */
+/* global CM, Render, Anchor, Finder, TableUi */
 'use strict';
 
 (function (root) {
@@ -322,21 +322,25 @@
       this.headings = headings;
     }
     eq(o) {
-      return JSON.stringify(o.headings) === JSON.stringify(this.headings);
+      return this.key === o.key;
+    }
+    get key() {
+      // 不含位置：上方的编辑只移动标题位置，目录内容不变，不需要重绘
+      return JSON.stringify(this.headings.map((h) => [h.level, h.text]));
     }
     toDOM(view) {
       const el = document.createElement('div');
       el.className = 'im-block im-toc';
-      for (const h of this.headings) {
+      this.headings.forEach((h, i) => {
         const a = document.createElement('div');
         a.textContent = h.text;
         a.style.paddingLeft = `${(h.level - 1) * 20}px`;
         a.addEventListener('mousedown', (e) => {
           e.preventDefault();
-          jumpTo(view, h.from);
+          jumpTo(view, headingsOf(view.state, syntaxTree(view.state))[i].from);
         });
         el.append(a);
-      }
+      });
       return el;
     }
     ignoreEvent() {
@@ -472,6 +476,7 @@
       dom.className = 'im-table';
       wrap.append(dom);
       this.fill(dom, view);
+      TableUi.attach(wrap);
       const cellOf = (td) => dom.widget.model.rows[td.dataset.r][td.dataset.c];
       const commit = (td) => {
         const cell = cellOf(td);
@@ -512,7 +517,9 @@
       const dom = wrap.firstChild;
       const same = dom.rows.length === this.model.rows.length && dom.rows[0]?.cells.length === this.model.rows[0].length;
       if (!same) {
+        const focused = dom.contains(document.activeElement);
         this.fill(dom, view);
+        if (focused) TableUi.restoreFocus(wrap);
         return true;
       }
       const old = dom.widget;
@@ -520,6 +527,7 @@
       this.cellElements(dom).forEach((tds, r) =>
         tds.forEach((td, c) => {
           const cell = this.model.rows[r][c];
+          td.style.textAlign = this.model.aligns[c] || '';
           const prev = old.model.rows[r][c];
           if (cell && (cell.text !== prev?.text || JSON.stringify(cell.marks) !== JSON.stringify(prev?.marks))) this.showCell(td, cell);
         }),

@@ -14,17 +14,29 @@
       <aside id="sidebar">
         <nav class="sidebar-tabs">
           <button data-tab="files">文件</button>
+          <button data-tab="favorites">收藏</button>
           <button data-tab="outline">大纲</button>
         </nav>
         <section id="pane-files" class="pane">
-          <div id="folder-name" class="folder-name"></div>
+          <div id="folder-name" class="folder-name" hidden><span class="name"></span><button class="star" aria-label="收藏"></button></div>
           <ul id="tree" class="tree"></ul>
           <button id="open-folder" class="link-button">打开文件夹…</button>
+        </section>
+        <section id="pane-favorites" class="pane">
+          <ul id="favorites" class="tree favorites"></ul>
         </section>
         <section id="pane-outline" class="pane">
           <ul id="outline" class="outline"></ul>
         </section>
       </aside>
+      <div
+        id="resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整侧边栏宽度"
+        title="拖动调整宽度，双击复位"
+        tabindex="0"
+      ></div>
       <main id="main">
         <div id="findbar" hidden>
           <input id="find-input" type="text" placeholder="查找" spellcheck="false" />
@@ -50,11 +62,16 @@
     <script src="doc-format.js"></script>
     <script src="markdown-html.js"></script>
     <script src="render.js"></script>
+    <script src="table-utils.js"></script>
+    <script src="table.js"></script>
     <script src="anchor.js"></script>
     <script src="live-preview.js"></script>
     <script src="find.js"></script>
     <script src="editor.js"></script>
     <script src="platform.js"></script>
+    <script src="contextmenu.js"></script>
+    <script src="resizer.js"></script>
+    <script src="favorites.js"></script>
     <script src="export.js"></script>
     <script src="app.js"></script>
   </body>

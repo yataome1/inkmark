@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-09
+
+实现规格 [003-tables-sidebar-favorites](specs/003-tables-sidebar-favorites/spec.md)。
+
+### 新增
+
+- 表格可视化编辑：尺寸选择器、工具条、右键菜单、`Ctrl+Enter`、`Ctrl+Shift+Backspace`、`Tab`、拖动行列；只更新当前表格，一步撤销
+- 侧边栏与内容区之间可拖动的分割线：拖到阈值收起，从左边缘拖出，双击复位，宽度持久化
+- 收藏夹：收藏文件和文件夹，可拖动或用键盘调整顺序（`Ctrl+Shift+2`）
+
+### 修复
+
+- 编辑时 `[TOC]` 目录重绘并牵连周围的图表
+
 ## [0.3.0] - 2026-11-09
 
 实现规格 [006-codemirror-core](specs/006-codemirror-core/spec.md)（选型依据见 [005](specs/005-editor-core/research.md)）。

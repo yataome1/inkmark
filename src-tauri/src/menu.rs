@@ -21,7 +21,13 @@ fn item<R: Runtime>(app: &AppHandle<R>, id: &str, label: &str, shortcut: &str) -
     MenuItemBuilder::with_id(id, text).build(app)
 }
 
-pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sample: &str) -> tauri::Result<Menu<R>> {
+pub fn build<R: Runtime>(
+    app: &AppHandle<R>,
+    recent: &[String],
+    theme: &str,
+    sample: &str,
+    (favorited, can_favorite): (bool, bool),
+) -> tauri::Result<Menu<R>> {
     let i = |id: &str, label: &str, shortcut: &str| item(app, id, label, shortcut);
     let sep = || PredefinedMenuItem::separator(app);
 
@@ -40,6 +46,18 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sam
         .item(&i("open", "打开…", "Ctrl+O")?)
         .item(&i("open-folder", "打开文件夹…", "Ctrl+Shift+O")?)
         .item(&recent_menu.build()?)
+        .item(
+            &MenuItemBuilder::with_id(
+                "toggle-favorite-current",
+                if favorited {
+                    "取消收藏当前文件"
+                } else {
+                    "收藏当前文件"
+                },
+            )
+            .enabled(can_favorite)
+            .build(app)?,
+        )
         .item(&sep()?)
         .item(&i("save", "保存", "Ctrl+S")?)
         .item(&i("save-as", "另存为…", "Ctrl+Shift+S")?)
@@ -101,6 +119,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, recent: &[String], theme: &str, sam
         .item(&sep()?)
         .item(&i("toggle-sidebar", "显示/隐藏侧边栏", "Ctrl+Shift+L")?)
         .item(&i("sidebar-outline", "大纲", "Ctrl+Shift+1")?)
+        .item(&i("sidebar-favorites", "收藏", "Ctrl+Shift+2")?)
         .item(&i("sidebar-files", "文件树", "Ctrl+Shift+3")?)
         .item(&sep()?)
         .item(&i("focus-mode", "专注模式", "F8")?)

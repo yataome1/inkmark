@@ -1,5 +1,5 @@
 // CodeMirror 6 编辑器（FR-601）：编辑状态即 Markdown 原文，换行统一为 LF（BOM、换行符由 doc-format.js 处理）。
-/* global CM, LivePreview, Finder */
+/* global CM, LivePreview, Finder, TableUtils */
 'use strict';
 
 (function (root) {
@@ -140,7 +140,7 @@
     check: () => setLinePrefix(view, () => '- [ ] ', /\[[ xX]\]/),
     'code-block': () => insertBlock(view, '```\n', '\n```'),
     'math-block': () => insertBlock(view, '$$\n', '\n$$'),
-    table: () => insertBlock(view, '| col1 | col2 | col3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |', ''),
+    table: ({ rows, cols } = { rows: 3, cols: 3 }) => insertBlock(view, TableUtils.formatTable(TableUtils.createTable(rows, cols)), ''),
     line: () => insertBlock(view, '---', ''),
   });
 

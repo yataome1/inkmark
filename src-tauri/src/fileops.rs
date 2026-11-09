@@ -48,6 +48,26 @@ pub struct Entry {
     pub dir: bool,
 }
 
+#[derive(Serialize, Debug, PartialEq)]
+pub struct PathInfo {
+    pub exists: bool,
+    pub dir: bool,
+}
+
+/// 只报告路径是否存在、是否目录，不读取内容（收藏夹 FR-213）。
+pub fn path_info(paths: &[String]) -> Vec<PathInfo> {
+    paths
+        .iter()
+        .map(|p| {
+            let meta = fs::metadata(p);
+            PathInfo {
+                exists: meta.is_ok(),
+                dir: meta.is_ok_and(|m| m.is_dir()),
+            }
+        })
+        .collect()
+}
+
 /// 一层目录：文件夹在前，其次 Markdown 文件；忽略隐藏项与 node_modules。
 pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
     let mut out: Vec<Entry> = fs::read_dir(dir)?
@@ -190,6 +210,31 @@ mod tests {
         let f = d.join("bad.md");
         fs::write(&f, [b'a', 0xFF, b'b']).unwrap();
         assert_eq!(read_text(&f).unwrap(), "a\u{FFFD}b");
+    }
+
+    #[test]
+    fn path_info_reports_files_dirs_and_missing() {
+        let d = tmpdir("info");
+        let f = d.join("a.md");
+        fs::write(&f, "").unwrap();
+        let paths = [f, d.clone(), d.join("none")].map(|p| p.to_string_lossy().into_owned());
+        assert_eq!(
+            path_info(&paths),
+            [
+                PathInfo {
+                    exists: true,
+                    dir: false
+                },
+                PathInfo {
+                    exists: true,
+                    dir: true
+                },
+                PathInfo {
+                    exists: false,
+                    dir: false
+                },
+            ]
+        );
     }
 
     #[test]
