@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-09
+
 实现规格 [008-multi-tabs](specs/008-multi-tabs/spec.md)。
 
 ### 新增
