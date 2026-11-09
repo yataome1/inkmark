@@ -27,8 +27,8 @@ specs/<NNN>-<kebab-name>/
 
 | 路径 | 内容 | 规则 |
 |---|---|---|
-| `src/` | 前端（原生 JS，无框架、无打包器） | 只通过 `platform.js`（`window.inkmark`）访问系统能力；纯函数放 `text-utils.js` 等可测试模块 |
-| `src/vendor/` | 构建时由 `npm run vendor` 复制的 Vditor 资源 | 不提交；需要新的 Vditor 资源时修改 `scripts/copy-vditor.mjs` 并说明体积影响 |
+| `src/` | 前端（原生 JS，无框架，应用代码不经打包） | 只通过 `platform.js`（`window.inkmark`）访问系统能力；纯函数放 `text-utils.js` 等可测试模块 |
+| `src/vendor/` | 构建时由 `npm run vendor` 生成的第三方资源（esbuild 打包的 CodeMirror 与 markdown-it，以及 KaTeX、Mermaid、highlight.js） | 不提交；需要新的第三方资源时修改 `scripts/vendor.mjs` 并说明体积影响 |
 | `src-tauri/src/` | Rust 后端 | 唯一可访问文件系统、对话框、原生菜单的位置；新增命令须同步更新 plan 的 IPC 契约表 |
 | `src-tauri/capabilities/` | 前端权限 | 按最小权限逐项授予，禁止整体开放 `fs` 等插件 |
 | `src-tauri/icons/` | 应用图标 | 只保留 Windows 所需尺寸 |
@@ -49,7 +49,7 @@ specs/<NNN>-<kebab-name>/
 - 不丢数据（宪章 IV）：写文件统一走 `fileops::write_atomic`；任何替换当前文档或关闭窗口的操作先调用 `confirmLeave()`。
 - 轻量（宪章 VII）：安装包 ≤ 10MB、免安装版 ≤ 15MB（CI 检查）；新增依赖须在 plan 中说明体积影响。
 - 快捷键：WebView2 有焦点时菜单快捷键不触发，所有快捷键在 `src/app.js` 的 `KEYMAP` 中处理，`menu.rs` 只显示快捷键文字，两处必须一致。
-- Vditor 版本锁定为精确版本；升级须重新执行 `checklist.md` 全部场景（代码依赖其非公开 API：`vditor.vditor.lute`、隐藏工具栏按钮）。
+- CodeMirror、markdown-it、KaTeX、Mermaid、highlight.js 版本锁定为精确版本；升级须重新执行 `checklist.md` 全部场景。
 - 用户可见文本使用简体中文；代码注释中文或英文均可，但须简洁并在需要时引用需求号（如 `FR-011`）。
 - 风格：前端由 Prettier + ESLint，Rust 由 rustfmt（`max_width = 120`）+ clippy（`-D warnings`）强制。
 

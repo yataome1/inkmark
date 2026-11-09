@@ -4,7 +4,9 @@
     <meta charset="utf-8" />
     <!-- CSP 由 src-tauri/tauri.conf.json 的 app.security.csp 统一设置 -->
     <title>Inkmark</title>
-    <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
+    <link rel="stylesheet" href="vendor/katex/katex.min.css" />
+    <link rel="stylesheet" href="vendor/highlight/github.min.css" media="(prefers-color-scheme: light)" />
+    <link rel="stylesheet" href="vendor/highlight/github-dark.min.css" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -41,10 +43,18 @@
         </footer>
       </main>
     </div>
-    <script src="vendor/vditor/dist/index.min.js"></script>
+    <script src="vendor/cm.js"></script>
+    <script src="vendor/katex/katex.min.js"></script>
+    <script src="vendor/highlight/highlight.min.js"></script>
     <script src="text-utils.js"></script>
-    <script src="platform.js"></script>
+    <script src="doc-format.js"></script>
+    <script src="markdown-html.js"></script>
+    <script src="render.js"></script>
+    <script src="anchor.js"></script>
+    <script src="live-preview.js"></script>
     <script src="find.js"></script>
+    <script src="editor.js"></script>
+    <script src="platform.js"></script>
     <script src="export.js"></script>
     <script src="app.js"></script>
   </body>
