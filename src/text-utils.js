@@ -54,21 +54,7 @@
     return out;
   }
 
-  /**
-   * FR-401：Lute 渲染表格时把单元格行内代码中的 `\|` 还原为 `|`，转回 Markdown 时却不重新转义，
-   * 导致拆列。在交给 Lute 的 IR HTML 中，把表格内行内代码（不含带 data-type 的公式）的 `|` 写回 `\|`。
-   */
-  function escapeTableCodePipes(html) {
-    if (!html.includes('<table')) return html;
-    return html.replace(/<table[\s\S]*?<\/table>/g, (table) =>
-      table.replace(
-        /(<code(?![^>]*\sdata-type=)[^>]*>)([^<]*)(<\/code>)/g,
-        (m, open, text, close) => open + text.replace(/\|/g, '\\|') + close,
-      ),
-    );
-  }
-
-  const api = { countWords, parseHeadings, escapeTableCodePipes };
+  const api = { countWords, parseHeadings };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TextUtils = api;
 })(this);

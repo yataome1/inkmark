@@ -184,7 +184,7 @@ fn on_menu(app: &AppHandle, id: &str) {
         menu::ABOUT => {
             app.dialog()
                 .message(format!(
-                    "受 Typora 启发的本地 Markdown 查看与编辑器。\nTauri {} · Vditor\n{REPO_URL}",
+                    "受 Typora 启发的本地 Markdown 查看与编辑器。\nTauri {} · CodeMirror\n{REPO_URL}",
                     tauri::VERSION
                 ))
                 .title(format!("关于 Inkmark {}", app.package_info().version))

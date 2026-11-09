@@ -8,6 +8,9 @@
   --accent: #4a7dff;
   --font-ui: 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
   --font-body: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-mono: Consolas, 'Microsoft YaHei', monospace;
+  --code-bg: #f3f4f6;
+  --mark-bg: #fff3a3;
   color-scheme: light;
 }
 
@@ -20,6 +23,8 @@
     --border: #2d2f33;
     --hover: #2a2c30;
     --accent: #6b95ff;
+    --code-bg: #2a2c30;
+    --mark-bg: #6b5900;
     color-scheme: dark;
   }
 }
@@ -159,43 +164,208 @@ body {
   flex: 1;
   min-height: 0;
 }
-#editor.vditor {
-  border: 0;
-  border-radius: 0;
-}
-/* Typora 无工具栏；按钮仍保留在 DOM 中供命令调用 */
-#editor .vditor-toolbar {
-  display: none;
-}
-.vditor-content {
+#editor .cm-editor {
+  height: 100%;
   background: var(--bg);
+  color: var(--fg);
 }
-.vditor-reset {
+#editor .cm-editor.cm-focused {
+  outline: none;
+}
+#editor .cm-scroller {
+  overflow: auto;
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.75;
 }
 /* 正文居中、最大 860px；滚动条贴窗口右侧 */
-.vditor-ir pre.vditor-reset,
-.vditor-sv.vditor-reset {
-  padding: 40px max(48px, calc((100% - 860px) / 2)) 120px !important;
-  background: var(--bg);
+#editor .cm-content {
+  max-width: 956px;
+  margin: 0 auto;
+  padding: 40px 48px 120px;
+  caret-color: var(--fg);
+}
+#editor .cm-line {
+  padding: 0;
+}
+
+/* ---------- 即时渲染（FR-604） ---------- */
+.im-h1,
+.im-h2,
+.im-h3,
+.im-h4,
+.im-h5,
+.im-h6 {
+  font-weight: 600;
+  line-height: 1.4;
+}
+#editor .im-h1 {
+  font-size: 2em;
+  padding: 0.5em 0 0.2em;
+}
+#editor .im-h2 {
+  font-size: 1.5em;
+  padding: 0.5em 0 0.2em;
+}
+#editor .im-h3 {
+  font-size: 1.25em;
+  padding: 0.4em 0 0.1em;
+}
+.im-h4 {
+  font-size: 1em;
+}
+.im-h5 {
+  font-size: 0.875em;
+}
+.im-h6 {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+.im-marker,
+.im-reference {
+  color: var(--muted);
+}
+.im-strong {
+  font-weight: 600;
+}
+.im-em {
+  font-style: italic;
+}
+.im-del {
+  text-decoration: line-through;
+}
+.im-tag-u {
+  text-decoration: underline;
+}
+.im-tag-sub {
+  vertical-align: sub;
+  font-size: 0.8em;
+}
+.im-tag-sup {
+  vertical-align: super;
+  font-size: 0.8em;
+}
+.im-tag-kbd,
+.im-code-inline {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.im-highlight,
+.im-tag-mark {
+  background: var(--mark-bg);
+}
+.im-link {
+  color: var(--accent);
+}
+.im-footnote {
+  vertical-align: super;
+  font-size: 0.75em;
+  color: var(--accent);
+}
+.im-bullet,
+.im-ordered {
+  color: var(--muted);
+}
+.im-check {
+  margin: 0 2px 0 0;
+  vertical-align: middle;
+}
+#editor .im-quote {
+  border-left: 3px solid var(--border);
+  padding-left: 14px;
+  color: var(--muted);
+}
+#editor .im-code {
+  padding: 0 14px;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+#editor .cm-line.im-fence-hidden {
+  height: 0;
+  overflow: hidden;
+}
+#editor .im-hr {
+  height: 1.75em;
+  background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+}
+.im-image {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  vertical-align: bottom;
+}
+.im-broken {
+  min-width: 48px;
+  min-height: 24px;
+  outline: 1px dashed var(--border);
+}
+.im-block {
+  padding: 6px 0;
+  text-align: center;
+}
+.im-error {
+  color: #d9534f;
+  font-size: 13px;
+  text-align: left;
+}
+.im-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+.im-toc {
+  text-align: left;
+  color: var(--accent);
+  cursor: pointer;
+}
+.im-table-wrap {
+  padding: 8px 0;
+}
+.im-table {
+  border-collapse: collapse;
+}
+.im-table th,
+.im-table td {
+  min-width: 48px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  outline: none;
+}
+.im-table th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+.im-table code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.im-table mark {
+  background: var(--mark-bg);
+  color: inherit;
+}
+.im-table td:focus,
+.im-table th:focus {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 /* 专注模式（FR-008） */
-#editor.focus-mode .vditor-ir pre.vditor-reset > *,
-#editor.focus-mode .vditor-sv.vditor-reset > * {
+#editor.focus-mode .cm-content > * {
   opacity: 0.3;
   transition: opacity 0.15s;
 }
-#editor.focus-mode .vditor-ir pre.vditor-reset > .im-active,
-#editor.focus-mode .vditor-sv.vditor-reset > .im-active {
+#editor.focus-mode .cm-content > .im-active {
   opacity: 1;
 }
+
 /* 打字机模式：底部留白让最后一行也能居中 */
-#editor.typewriter-mode .vditor-ir pre.vditor-reset,
-#editor.typewriter-mode .vditor-sv.vditor-reset {
-  padding-bottom: 50vh !important;
+#editor.typewriter-mode .cm-content {
+  padding-bottom: 50vh;
 }
 
 /* ---------- 查找栏 ---------- */
@@ -245,15 +415,16 @@ body {
 #findbar button:hover {
   background: var(--hover);
 }
-::highlight(im-find) {
+.im-find {
   background-color: rgba(255, 196, 61, 0.45);
 }
-::highlight(im-find-current) {
+.im-find-current {
   background-color: #ff9632;
   color: #000;
 }
 #find-count {
   min-width: 40px;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 12px;
   text-align: center;

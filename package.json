@@ -1,12 +1,12 @@
 {
   "name": "inkmark",
   "productName": "Inkmark",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "A Typora-inspired local Markdown viewer & editor for Windows",
   "scripts": {
     "start": "tauri dev",
-    "vendor": "node scripts/copy-vditor.mjs",
+    "vendor": "node scripts/vendor.mjs",
     "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint --fix .",
@@ -21,14 +21,28 @@
   "author": "yataome1 <zhangmian@outlook.com>",
   "license": "MIT",
   "type": "commonjs",
-  "dependencies": {
-    "vditor": "3.11.2"
-  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.12.4",
+    "esbuild": "0.28.2",
     "eslint": "^10.14.0",
     "globals": "^17.14.0",
     "prettier": "^3.9.10"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@highlightjs/cdn-assets": "11.12.0",
+    "@lezer/markdown": "1.8.1",
+    "katex": "0.19.1",
+    "markdown-it": "15.0.3",
+    "markdown-it-footnote": "4.0.0",
+    "markdown-it-mark": "4.0.0",
+    "markdown-it-task-lists": "2.1.1",
+    "mermaid": "12.3.0"
   }
 }
