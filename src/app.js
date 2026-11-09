@@ -1,14 +1,21 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage */
 'use strict';
 
 const api = window.inkmark;
 const $ = (sel) => document.querySelector(sel);
 const editorEl = $('#editor');
 
+// 当前文档的 path（未命名为 null）、format（打开时的 BOM 与换行符，保存时还原，FR-602）、dirty 属于当前标签
 const state = {
-  path: null, // 当前文件路径，未命名为 null
-  format: { bom: false, eol: '\n' }, // 打开时的 BOM 与换行符，保存时还原（FR-602）
-  dirty: false,
+  get path() {
+    return tabs.current.path;
+  },
+  get format() {
+    return tabs.current.format;
+  },
+  get dirty() {
+    return tabs.current.dirty;
+  },
   settings: null,
   focus: false,
   typewriter: false,
@@ -19,7 +26,8 @@ let editor;
 
 const basename = (p) => p.split(/[\\/]/).pop();
 const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
-const docName = () => (state.path ? basename(state.path) : '未命名');
+const tabTitle = (tab) => (tab.kind === 'start' ? '开始' : tab.path ? basename(tab.path) : `未命名-${tab.untitledNo}`);
+const docName = () => tabTitle(tabs.current);
 const isMarkdownPath = (p) => /\.(md|markdown|mdown|txt)$/i.test(p);
 
 function resolvePath(base, rel) {
@@ -41,27 +49,26 @@ function debounce(fn, ms) {
 }
 
 const modeElement = () => editor.dom;
+const isStart = () => tabs.current?.kind === 'start';
 
 // ---------------------------------------------------------------- 文档状态（FR-005/006）
 
 function updateTitle() {
-  api.setTitle(`${state.dirty ? '• ' : ''}${docName()} - Inkmark`);
+  api.setTitle(isStart() ? 'Inkmark' : `${state.dirty ? '• ' : ''}${docName()} - Inkmark`);
 }
 
-function refreshDirty() {
-  const dirty = editor.isDirty();
-  if (dirty !== state.dirty) {
-    state.dirty = dirty;
-    updateTitle();
-  }
+function syncDirty(tab) {
+  const dirty = editor.isDocDirty(tab.doc);
+  if (dirty === tab.dirty) return;
+  tab.dirty = dirty;
+  tabs.update(tab);
+  if (tab === tabs.current) updateTitle();
+  updateTabMenu();
 }
 
-const refreshPanels = debounce(() => {
-  const md = editor.getValue();
-  const { words, chars } = TextUtils.countWords(md);
-  $('#status-count').textContent = `${words} 词 · ${chars} 字符`;
-  renderOutline(md);
-}, 250);
+const refreshDirty = () => syncDirty(tabs.current);
+
+const refreshPanels = debounce(() => updatePanels(), 250);
 
 function onChange() {
   refreshDirty();
@@ -79,33 +86,346 @@ async function imageUrl(src) {
   return api.toAssetUrl(r.path);
 }
 
-function loadDoc(doc) {
-  state.path = doc ? doc.path : null;
-  const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
-  state.format = { bom, eol };
-  editor.load(body);
-  state.dirty = false;
-  updateTitle();
-  refreshPanels();
-  highlightTreeCurrent();
-  editor.focus();
-  if (!findbar.hidden) runFind();
+function updatePanels() {
+  const md = editor.getValue();
+  const { words, chars } = TextUtils.countWords(md);
+  $('#status-count').textContent = isStart() ? '' : `${words} 词 · ${chars} 字符`;
+  renderOutline(md);
 }
 
-async function save(as = false) {
-  const content = DocFormat.join(editor.getValue(), state.format);
-  const suggested = state.path || '未命名.md';
-  const p = as ? await api.saveAs(content, suggested) : await api.saveFile(state.path, content);
-  if (!p) return false;
-  if (p !== state.path) {
-    state.path = p;
-    highlightTreeCurrent();
+// ---------------------------------------------------------------- 标签（specs/008）
+
+const tabs = Tabs.create({
+  bar: $('#tabbar'),
+  onSelect: (tab) => busy || showTab(tab),
+  onClose: (tab) => tab.kind === 'start' || closeTabs([tab]),
+  onNew: newTab,
+  onMenu: showTabMenu,
+  onChange: () => saveSessionSoon(),
+  title: tabTitle,
+});
+const closedTabs = []; // 本次运行关闭的文件标签，后关闭的在末尾（US3-5）
+const MAX_CLOSED = 20;
+let busy = false; // 关闭或全部保存的询问进行中
+
+const startPage = StartPage.create({
+  root: $('#start-page'),
+  actions: () => [
+    { icon: '+', label: '新建空白 Markdown', shortcut: 'Ctrl+N', run: newTab },
+    { icon: '↗', label: '打开文件…', shortcut: 'Ctrl+O', run: () => run('open') },
+    { icon: '▸', label: '打开文件夹…', shortcut: 'Ctrl+Shift+O', run: () => run('open-folder') },
+    ...(closedTabs.length ? [{ icon: '↺', label: '恢复关闭的标签', shortcut: 'Ctrl+Shift+T', run: () => run('reopen-tab') }] : []),
+    { icon: '?', label: '查看示例文档', run: async () => openPath(await api.sampleDoc()) },
+  ],
+  recent: () => state.settings.recent,
+  favorites: () => state.settings.favorites,
+  pathInfo: api.pathInfo,
+  openFile: (p) => openPath(p),
+  openFolder: (p) => openFolderInSidebar(p),
+  setRecent: async (recent) => {
+    state.settings = await api.setSettings({ recent });
+  },
+});
+
+let lastTabMenu = '';
+function updateTabMenu() {
+  const start = isStart();
+  const menu = {
+    hasDoc: !start,
+    anyDirty: tabs.list.some((t) => t.dirty),
+    canCloseOthers: !start && tabs.list.length > 1,
+    canReopen: closedTabs.length > 0,
+  };
+  const key = JSON.stringify(menu);
+  if (key !== lastTabMenu) {
+    lastTabMenu = key;
+    api.setTabMenu(menu);
   }
-  editor.markSaved();
-  state.dirty = true; // 强制 refreshDirty 发出更新
-  refreshDirty();
+}
+
+let wantedTab = null; // 最后一次要求显示的标签，懒加载完成时只显示它
+
+/** 恢复的标签首次切换时才读取文件（NFR-805） */
+async function loadTab(tab) {
+  if (tab.loading) return;
+  tab.loading = true;
+  let doc;
+  try {
+    doc = await api.readFile(tab.path);
+  } catch {
+    alert(`无法打开文件：\n${tab.path}`);
+    tabs.remove([tab]);
+    updateTabMenu();
+    return;
+  } finally {
+    tab.loading = false;
+  }
+  Object.assign(tab, docFields(doc));
+  if (wantedTab === tab) showTab(tab);
+}
+
+function showTab(tab) {
+  wantedTab = tab;
+  if (!tab.doc) {
+    loadTab(tab);
+    return;
+  }
+  const start = tab.kind === 'start';
+  editorEl.hidden = start;
+  $('#start-page').hidden = !start;
+  if (start) {
+    findbar.hidden = true;
+    $('#find-count').textContent = '';
+  }
+  editor.activate(tab.doc);
+  tabs.select(tab);
   updateTitle();
+  updatePanels();
+  highlightTreeCurrent();
+  updateStatus();
+  if (!findbar.hidden) refreshFind();
+  else if (Finder.ranges(editor.view.state).length) Finder.clear(editor.view);
+  updateTabMenu();
+  if (start) {
+    startPage.render();
+  } else {
+    editor.view.requestMeasure();
+    editor.focus();
+  }
+}
+
+const startFields = () => ({
+  kind: 'start',
+  path: null,
+  untitledNo: 0,
+  format: { bom: false, eol: '\n' },
+  doc: editor.createDoc(''),
+  dirty: false,
+});
+
+function docFields(doc) {
+  const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
+  return {
+    kind: 'doc',
+    path: doc ? TabUtils.normalizePath(doc.path) : null,
+    untitledNo: doc ? 0 : TabUtils.nextUntitled(tabs.list.map((t) => t.untitledNo)),
+    format: { bom, eol },
+    doc: editor.createDoc(body),
+    dirty: false,
+  };
+}
+
+/** 新建未命名标签，放在当前标签右侧（US1-4） */
+function newTab() {
+  if (isStart()) {
+    Object.assign(tabs.current, docFields(null));
+    tabs.render();
+    showTab(tabs.current);
+    return;
+  }
+  const tab = docFields(null);
+  tabs.insert(tab, tabs.list.indexOf(tabs.current) + 1);
+  showTab(tab);
+}
+
+/** 在新标签中显示已读取的文档；已打开时切换到已有标签；唯一的空白标签被复用（FR-802） */
+function showDoc(doc, index) {
+  const existing = tabs.find(TabUtils.pathKey(doc.path));
+  if (existing) {
+    showTab(existing);
+    tabs.flash(existing);
+    return;
+  }
+  const only = tabs.list.length === 1 && tabs.list[0];
+  if (only && (only.kind === 'start' || (!only.path && !editor.isDocDirty(only.doc)))) {
+    Object.assign(only, docFields(doc));
+    tabs.render();
+    showTab(only);
+    return;
+  }
+  const tab = docFields(doc);
+  tabs.insert(tab, index);
+  showTab(tab);
+}
+
+/** 让用户选择另存为路径；目标已在其他标签打开时不写入（FR-802、边界情况） */
+async function askSavePath(tab) {
+  for (;;) {
+    const p = await api.askSavePath(tab.path || `${tabTitle(tab)}.md`);
+    if (!p) return null;
+    const other = tabs.find(TabUtils.pathKey(p));
+    if (!other || other === tab) return p;
+    const choice = await api.confirmSaveConflict(basename(p));
+    if (choice === 'switch') {
+      showTab(other);
+      tabs.flash(other);
+    }
+    if (choice !== 'retry') return null;
+  }
+}
+
+/** 保存的唯一入口；未命名或另存为时先切换到该标签再询问路径。成功返回 true */
+async function saveTab(tab, as = false) {
+  let path = tab.path;
+  if (as || !path) {
+    if (tab !== tabs.current) showTab(tab);
+    path = await askSavePath(tab);
+    if (!path) return false;
+  }
+  try {
+    await api.saveFile(path, DocFormat.join(editor.docText(tab.doc), tab.format));
+  } catch (e) {
+    alert(`无法保存文件：\n${path}\n${e}`);
+    return false;
+  }
+  if (path !== tab.path) {
+    tab.path = TabUtils.normalizePath(path);
+    tabs.render();
+    if (tab === tabs.current) highlightTreeCurrent();
+  }
+  editor.markSaved(tab.doc);
+  syncDirty(tab);
+  if (tab === tabs.current) updateTitle();
   return true;
+}
+
+/** 全部保存（US6）：写入失败时继续其余文件；取消另存为时跳过其余未命名标签 */
+async function saveAll() {
+  if (busy) return;
+  const dirty = tabs.list.filter((t) => editor.isDocDirty(t.doc));
+  if (!dirty.length) return;
+  const origin = tabs.current;
+  let saved = 0;
+  let finished = true;
+  busy = true;
+  try {
+    for (const tab of dirty.filter((t) => t.path)) if (await saveTab(tab)) saved++;
+    for (const tab of dirty.filter((t) => !t.path)) {
+      finished = await saveTab(tab);
+      if (!finished) break;
+      saved++;
+    }
+  } finally {
+    busy = false;
+  }
+  if (finished && tabs.current !== origin) showTab(origin);
+  $('#status-flags').textContent = `已保存 ${saved} 个文件`;
+}
+
+/** 处理 targets 中未保存的修改，返回 true 表示可以关闭（宪章 IV、FR-806、FR-819） */
+async function settleDirty(targets) {
+  const dirty = targets.filter((t) => editor.isDocDirty(t.doc));
+  if (!dirty.length) return true;
+  if (dirty.length === 1) {
+    showTab(dirty[0]);
+    return confirmLeave();
+  }
+  const choice = await api.confirmDiscardAll(dirty.map(tabTitle));
+  if (choice !== 'save') return choice === 'discard';
+  for (const tab of [...dirty.filter((t) => t.path), ...dirty.filter((t) => !t.path)]) {
+    if (!(await saveTab(tab))) return false;
+  }
+  return true;
+}
+
+function removeTabs(targets) {
+  for (const tab of targets) if (tab.path) closedTabs.push({ path: tab.path, index: tabs.list.indexOf(tab) });
+  closedTabs.splice(0, closedTabs.length - MAX_CLOSED);
+  let next = TabUtils.nextAfterClose(tabs.list, tabs.current, targets);
+  if (!next) {
+    next = startFields();
+    tabs.insert(next);
+  }
+  if (next !== tabs.current) showTab(next);
+  tabs.remove(targets);
+  updateTabMenu();
+  if (!isStart()) editor.focus();
+}
+
+async function closeTabs(targets) {
+  if (busy || !targets.length) return;
+  busy = true;
+  try {
+    if (await settleDirty(targets)) removeTabs(targets);
+  } finally {
+    busy = false;
+  }
+}
+
+const documentTabs = () => tabs.list.filter((t) => t.kind !== 'start');
+
+// ---------------------------------------------------------------- 标签会话（FR-811）
+
+let sessionReady = false; // 恢复完成前不记录，避免启动时覆盖上次的会话
+
+async function writeSession() {
+  if (!sessionReady) return;
+  const saved = tabs.list.filter((t) => t.path);
+  state.settings = await api.setSettings({
+    tabs: { paths: saved.map((t) => t.path), active: Math.max(saved.indexOf(tabs.current), 0) },
+  });
+}
+
+const saveSessionSoon = debounce(writeSession, 300);
+
+/** 恢复上次的标签，只读取当前标签；有标签显示时返回 true */
+async function restoreSession() {
+  if (!state.settings.restoreTabs) return false;
+  const { paths, active } = state.settings.tabs;
+  if (!paths.length) return false;
+  const info = await api.pathInfo(paths);
+  const restored = paths
+    .filter((_, i) => info[i].exists && !info[i].dir)
+    .map((p) => ({ kind: 'doc', path: p, untitledNo: 0, format: { bom: false, eol: '\n' }, doc: null, dirty: false }));
+  const skipped = paths.length - restored.length;
+  restored.forEach((tab) => tabs.insert(tab));
+  const first = restored.find((t) => t.path === paths[active]) || restored[0];
+  for (const tab of first ? [first, ...restored.filter((t) => t !== first)] : []) {
+    try {
+      Object.assign(tab, docFields(await api.readFile(tab.path)));
+      showTab(tab);
+      if (skipped) $('#status-flags').textContent = `已跳过 ${skipped} 个不存在的文件`;
+      return true;
+    } catch {
+      tabs.remove([tab]);
+    }
+  }
+  return false;
+}
+
+function cycleTab(step) {
+  if (busy) return;
+  const n = tabs.list.length;
+  showTab(tabs.list[(tabs.list.indexOf(tabs.current) + step + n) % n]);
+}
+
+/** n 为 1..8 时跳到第 n 个，9 时跳到最后一个（US3-3） */
+function gotoTab(n) {
+  const tab = n === 9 ? tabs.list.at(-1) : tabs.list[n - 1];
+  if (tab && !busy) showTab(tab);
+}
+
+function reopenTab() {
+  const item = closedTabs.pop();
+  updateTabMenu();
+  if (item) openPath(item.path, item.index);
+}
+
+function showTabMenu(tab, x, y) {
+  const isDoc = tab.kind !== 'start';
+  const i = tabs.list.indexOf(tab);
+  const favorited = !!tab.path && favorites.has(tab.path);
+  ContextMenu.show(x, y, [
+    { label: '关闭', shortcut: 'Ctrl+W', disabled: !isDoc, action: () => closeTabs([tab]) },
+    { label: '关闭其他标签', disabled: tabs.list.length < 2, action: () => closeTabs(tabs.list.filter((t) => t !== tab)) },
+    { label: '关闭右侧标签', disabled: i === tabs.list.length - 1, action: () => closeTabs(tabs.list.slice(i + 1)) },
+    '-',
+    { label: '重新打开关闭的标签', shortcut: 'Ctrl+Shift+T', disabled: !closedTabs.length, action: reopenTab },
+    '-',
+    { label: '复制文件路径', disabled: !tab.path, action: () => navigator.clipboard.writeText(tab.path) },
+    { label: '在资源管理器中显示', disabled: !tab.path, action: () => api.revealPath(tab.path) },
+    { label: favorited ? '从收藏中移除' : '添加到收藏', disabled: !tab.path, action: () => favorites.toggle(tab.path, false) },
+  ]);
 }
 
 /** 返回 true 表示可以继续丢弃当前文档（宪章 IV） */
@@ -113,12 +433,13 @@ async function confirmLeave() {
   refreshDirty();
   if (!state.dirty) return true;
   const choice = await api.confirmDiscard(docName());
-  if (choice === 'save') return save();
+  if (choice === 'save') return saveTab(tabs.current);
   return choice === 'discard';
 }
 
-async function openPath(p) {
-  if (p === state.path) return;
+async function readAndShow(p, index) {
+  const existing = tabs.find(TabUtils.pathKey(p));
+  if (existing) return showDoc(existing);
   let doc;
   try {
     doc = await api.readFile(p);
@@ -128,7 +449,14 @@ async function openPath(p) {
     state.settings = await api.setSettings({ recent });
     return;
   }
-  if (await confirmLeave()) loadDoc(doc);
+  showDoc(doc, index);
+}
+
+// 打开请求排队，连续打开多个文件时顺序不交错
+let openQueue = Promise.resolve();
+function openPath(p, index) {
+  openQueue = openQueue.then(() => readAndShow(p, index));
+  return openQueue;
 }
 
 // ---------------------------------------------------------------- 排版命令（FR-012）
@@ -176,7 +504,7 @@ async function setSidebar(patch) {
 }
 
 function updateStatus() {
-  $('#status-mode').textContent = editor.isSource() ? '源代码模式' : '即时渲染';
+  $('#status-mode').textContent = isStart() ? '' : editor.isSource() ? '源代码模式' : '即时渲染';
   $('#status-flags').textContent = [state.focus && '专注', state.typewriter && '打字机'].filter(Boolean).join(' · ');
   editorEl.classList.toggle('focus-mode', state.focus);
   editorEl.classList.toggle('typewriter-mode', state.typewriter);
@@ -290,14 +618,16 @@ const favorites = Favorites.create({
   },
   pathInfo: api.pathInfo,
   openFile: (p) => openPath(p),
-  openFolder: async (p) => {
-    await showFolder(p);
-    state.settings = await api.setSettings({ folder: p });
-    await setSidebar({ visible: true, tab: 'files' });
-  },
+  openFolder: openFolderInSidebar,
   currentPath: () => state.path,
   onChange: refreshStars,
 });
+
+async function openFolderInSidebar(p) {
+  await showFolder(p);
+  state.settings = await api.setSettings({ folder: p });
+  await setSidebar({ visible: true, tab: 'files' });
+}
 
 function setStar(button, path) {
   const on = favorites.has(path);
@@ -448,10 +778,10 @@ const COMMANDS = {
   table: insertTable,
   'table-insert-row': () => TableUi.command('table-insert-row'),
   'table-delete-row': () => TableUi.command('table-delete-row'),
-  new: async () => (await confirmLeave()) && loadDoc(null),
+  new: newTab,
   open: async () => {
     const doc = await api.openDialog();
-    if (doc && (await confirmLeave())) loadDoc(doc);
+    if (doc) showDoc(doc);
   },
   'open-path': openPath,
   'open-folder': async () => {
@@ -461,8 +791,18 @@ const COMMANDS = {
     await setSidebar({ visible: true, tab: 'files' });
   },
   'clear-recent': async () => (state.settings = await api.setSettings({ recent: [] })),
-  save: () => save(false),
-  'save-as': () => save(true),
+  save: () => saveTab(tabs.current),
+  'save-as': () => saveTab(tabs.current, true),
+  'save-all': saveAll,
+  'close-tab': () => isStart() || closeTabs([tabs.current]),
+  'close-others': () => closeTabs(tabs.list.filter((t) => t !== tabs.current)),
+  'close-all': () => closeTabs(documentTabs()),
+  'reopen-tab': reopenTab,
+  'toggle-restore-tabs': async () => (state.settings = await api.setSettings({ restoreTabs: !state.settings.restoreTabs })),
+  'next-tab': () => cycleTab(1),
+  'prev-tab': () => cycleTab(-1),
+  'goto-tab': (n) => gotoTab(Number(n)),
+  'move-tab': (step) => tabs.move(tabs.current, tabs.list.indexOf(tabs.current) + Number(step)),
   'export-html': () => exportAs('html'),
   'export-pdf': () => exportAs('pdf'),
   find: () => showFindbar(false),
@@ -497,8 +837,24 @@ function setZoom(z) {
   api.setZoom(zoom);
 }
 
+// 起始页不是文档，这些命令不可用（FR-815）
+const DOCUMENT_COMMANDS = new Set([
+  'save',
+  'save-as',
+  'export-html',
+  'export-pdf',
+  'find',
+  'replace',
+  'source-mode',
+  'table',
+  'table-insert-row',
+  'table-delete-row',
+  'toggle-favorite-current',
+]);
+
 function run(cmd, arg) {
   if (!editor) return;
+  if (isStart() && (FORMAT[cmd] || DOCUMENT_COMMANDS.has(cmd))) return;
   if (FORMAT[cmd]) {
     if (!modeElement().contains(getSelection().anchorNode)) editor.focus();
     FORMAT[cmd](arg);
@@ -515,6 +871,16 @@ const KEYMAP = {
   'Ctrl+Shift+KeyO': ['open-folder'],
   'Ctrl+KeyS': ['save'],
   'Ctrl+Shift+KeyS': ['save-as'],
+  'Ctrl+Alt+KeyS': ['save-all'],
+  'Ctrl+KeyW': ['close-tab'],
+  'Ctrl+Shift+KeyT': ['reopen-tab'],
+  'Ctrl+Tab': ['next-tab'],
+  'Ctrl+Shift+Tab': ['prev-tab'],
+  'Ctrl+PageDown': ['next-tab'],
+  'Ctrl+PageUp': ['prev-tab'],
+  'Ctrl+Shift+PageDown': ['move-tab', 1],
+  'Ctrl+Shift+PageUp': ['move-tab', -1],
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`Alt+Digit${n}`, ['goto-tab', n]])),
   'Ctrl+Equal': ['zoom-in'],
   'Ctrl+Minus': ['zoom-out'],
   'Ctrl+Shift+Digit9': ['zoom-reset'],
@@ -583,8 +949,9 @@ editorEl.addEventListener(
 // 拖入 Markdown 文件则打开；拖入图片则保存到 assets/ 并插入（FR-001、FR-011）
 api.onDragDrop(async ({ type, paths }) => {
   if (type !== 'drop' || !paths?.length || !editor) return;
-  const md = paths.find(isMarkdownPath);
-  if (md) return openPath(md);
+  const docs = paths.filter(isMarkdownPath);
+  if (docs.length) return Promise.all(docs.map((p) => openPath(p)));
+  if (isStart()) return;
   for (const p of paths) {
     try {
       const src = await api.saveImageFromPath(state.path, p);
@@ -613,20 +980,24 @@ async function uploadImages(files) {
 document.querySelectorAll('.sidebar-tabs button').forEach((b) => b.addEventListener('click', () => setSidebar({ tab: b.dataset.tab })));
 $('#open-folder').addEventListener('click', () => run('open-folder'));
 api.onCommand(({ cmd, arg }) => run(cmd, arg));
-api.onOpenFile((p) => run('open-path', p));
+api.onOpenFile((paths) => paths.forEach((p) => run('open-path', p)));
 api.onCloseRequested(async (e) => {
-  if (!(await confirmLeave())) e.preventDefault();
+  if (busy || !(await settleDirty(tabs.list))) return e.preventDefault();
+  await writeSession();
 });
 
 (async () => {
   state.settings = await api.getSettings();
+  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
+  if (!(await restoreSession())) {
+    const first = startFields();
+    tabs.insert(first);
+    showTab(first);
+  }
+  sessionReady = true;
+  saveSessionSoon();
   applySidebar();
   if (state.settings.folder) showFolder(state.settings.folder);
   refreshStars();
-
-  editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
-  updateStatus();
-  loadDoc(null);
-  const initial = await api.appReady();
-  if (initial) openPath(initial);
+  (await api.appReady()).forEach((p) => openPath(p));
 })();

@@ -13,7 +13,7 @@ pub struct Settings {
 }
 
 fn defaults() -> Value {
-    json!({ "theme": "system", "recent": [], "sidebar": { "visible": true, "tab": "outline", "width": 260 }, "folder": null, "favorites": [] })
+    json!({ "theme": "system", "recent": [], "sidebar": { "visible": true, "tab": "outline", "width": 260 }, "folder": null, "favorites": [], "tabs": { "paths": [], "active": 0 }, "restoreTabs": true })
 }
 
 impl Settings {
@@ -56,6 +56,10 @@ impl Settings {
         let mut patch = Map::new();
         patch.insert("recent".into(), json!(list));
         self.update(patch)
+    }
+
+    pub fn restore_tabs(&self) -> bool {
+        self.value["restoreTabs"].as_bool().unwrap_or(true)
     }
 
     pub fn theme(&self) -> &str {

@@ -17,9 +17,10 @@ const REPO_URL: &str = "https://github.com/yataome1/inkmark";
 
 struct AppState {
     settings: Mutex<settings::Settings>,
-    initial_file: Mutex<Option<String>>,
+    initial_files: Mutex<Vec<String>>,
     /// 当前文件是否已收藏、当前文件能否收藏（已保存），决定“文件”菜单的文字与可用状态
     favorite_menu: Mutex<(bool, bool)>,
+    tab_menu: Mutex<menu::TabMenu>,
 }
 
 #[derive(Serialize)]
@@ -34,14 +35,15 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-/// 命令行参数中第一个存在的 Markdown 文件（FR-001）。
-fn file_from_args(args: &[String], cwd: &Path) -> Option<String> {
+/// 命令行参数中所有存在的 Markdown 文件（FR-001、FR-812）。
+fn files_from_args(args: &[String], cwd: &Path) -> Vec<String> {
     args.iter()
         .skip(1)
         .filter(|a| !a.starts_with('-'))
         .map(|a| cwd.join(a))
-        .find(|p| fileops::is_markdown(p) && p.is_file())
+        .filter(|p| fileops::is_markdown(p) && p.is_file())
         .map(|p| p.to_string_lossy().into_owned())
+        .collect()
 }
 
 fn sample_path(app: &AppHandle) -> String {
@@ -53,14 +55,13 @@ fn sample_path(app: &AppHandle) -> String {
 
 fn refresh_menu(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let (recent, theme) = {
+    let (recent, theme, restore_tabs) = {
         let s = state.settings.lock().unwrap();
-        (s.recent(), s.theme().to_string())
+        (s.recent(), s.theme().to_string(), s.restore_tabs())
     };
     let favorite = *state.favorite_menu.lock().unwrap();
-    if let Ok(m) = menu::build(app, &recent, &theme, &sample_path(app), favorite) {
-        let _ = app.set_menu(m);
-    }
+    let tab = *state.tab_menu.lock().unwrap();
+    let _ = menu::sync(app, &recent, &theme, favorite, tab, restore_tabs);
 }
 
 /// 只授权当前文档所在目录给 asset 协议，用于显示相对路径图片（宪章 V）。
@@ -87,8 +88,8 @@ fn theme_of(name: &str) -> Option<Theme> {
 // ---------------------------------------------------------------- 命令（IPC 契约见 plan.md）
 
 #[tauri::command]
-fn app_ready(state: State<AppState>) -> Option<String> {
-    state.initial_file.lock().unwrap().take()
+fn app_ready(state: State<AppState>) -> Vec<String> {
+    std::mem::take(&mut *state.initial_files.lock().unwrap())
 }
 
 #[tauri::command]
@@ -121,6 +122,29 @@ fn set_favorite_menu(app: AppHandle, state: State<AppState>, favorited: bool, en
     if changed {
         refresh_menu(&app);
     }
+}
+
+#[tauri::command]
+fn set_tab_menu(app: AppHandle, state: State<AppState>, tab_menu: menu::TabMenu) {
+    let changed = std::mem::replace(&mut *state.tab_menu.lock().unwrap(), tab_menu) != tab_menu;
+    if changed {
+        refresh_menu(&app);
+    }
+}
+
+#[tauri::command]
+fn sample_doc(app: AppHandle) -> String {
+    sample_path(&app)
+}
+
+/// 只允许已存在的 Markdown 文件，不能借此打开任意路径（宪章 V）。
+#[tauri::command]
+fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
+    let p = Path::new(&path);
+    if !fileops::is_markdown(p) || !p.is_file() {
+        return Err("不是 Markdown 文件".into());
+    }
+    app.opener().reveal_item_in_dir(p).map_err(err)
 }
 
 #[tauri::command]
@@ -170,7 +194,9 @@ fn get_settings(state: State<AppState>) -> Value {
 
 #[tauri::command]
 fn set_settings(app: AppHandle, state: State<AppState>, patch: Map<String, Value>) -> CmdResult<Value> {
-    let refresh = patch.contains_key("theme") || patch.contains_key("recent");
+    let refresh = ["theme", "recent", "restoreTabs"]
+        .iter()
+        .any(|k| patch.contains_key(*k));
     let value = {
         let mut s = state.settings.lock().unwrap();
         s.update(patch).map_err(err)?;
@@ -228,8 +254,9 @@ pub fn run() {
                 let _ = win.unminimize();
                 let _ = win.set_focus();
             }
-            if let Some(f) = file_from_args(&argv, Path::new(&cwd)) {
-                let _ = app.emit_to("main", "open-file", f);
+            let files = files_from_args(&argv, Path::new(&cwd));
+            if !files.is_empty() {
+                let _ = app.emit_to("main", "open-file", files);
             }
         }))
         .plugin(tauri_plugin_dialog::init())
@@ -241,6 +268,9 @@ pub fn run() {
             list_dir,
             path_info,
             set_favorite_menu,
+            set_tab_menu,
+            sample_doc,
+            reveal_path,
             save_image,
             save_image_from_path,
             allow_image,
@@ -258,8 +288,9 @@ pub fn run() {
             let cwd = std::env::current_dir().unwrap_or_default();
             app.manage(AppState {
                 settings: Mutex::new(settings),
-                initial_file: Mutex::new(file_from_args(&args, &cwd)),
+                initial_files: Mutex::new(files_from_args(&args, &cwd)),
                 favorite_menu: Mutex::new((false, false)),
+                tab_menu: Mutex::new(menu::TabMenu::default()),
             });
 
             let handle = app.handle().clone();
@@ -277,6 +308,7 @@ pub fn run() {
                     internal
                 })
                 .build()?;
+            app.set_menu(menu::build(app.handle(), &sample_path(app.handle()))?)?;
             refresh_menu(app.handle());
             Ok(())
         })
@@ -289,15 +321,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn file_from_args_picks_existing_markdown() {
+    fn files_from_args_keeps_existing_markdown() {
         let dir = std::env::temp_dir().join(format!("inkmark-args-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("a.md"), "").unwrap();
-        let args: Vec<String> = ["inkmark.exe", "--flag", "missing.md", "a.md"].map(String::from).into();
-        assert_eq!(
-            file_from_args(&args, &dir),
-            Some(dir.join("a.md").to_string_lossy().into_owned())
-        );
-        assert_eq!(file_from_args(&args[..3], &dir), None);
+        std::fs::write(dir.join("b.md"), "").unwrap();
+        let args: Vec<String> = ["inkmark.exe", "--flag", "missing.md", "a.md", "b.md"]
+            .map(String::from)
+            .into();
+        let expected = ["a.md", "b.md"].map(|f| dir.join(f).to_string_lossy().into_owned());
+        assert_eq!(files_from_args(&args, &dir), expected);
+        assert!(files_from_args(&args[..3], &dir).is_empty());
     }
 }

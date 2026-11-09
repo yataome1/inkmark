@@ -38,6 +38,7 @@
         tabindex="0"
       ></div>
       <main id="main">
+        <div id="tabbar"></div>
         <div id="findbar" hidden>
           <input id="find-input" type="text" placeholder="查找" spellcheck="false" />
           <span id="find-count"></span>
@@ -48,6 +49,7 @@
           <button id="find-close" title="关闭 (Esc)">✕</button>
         </div>
         <div id="editor"></div>
+        <div id="start-page" hidden></div>
         <footer id="statusbar">
           <span id="status-mode"></span>
           <span id="status-flags"></span>
@@ -67,11 +69,15 @@
     <script src="anchor.js"></script>
     <script src="live-preview.js"></script>
     <script src="find.js"></script>
+    <script src="scrollbar.js"></script>
     <script src="editor.js"></script>
     <script src="platform.js"></script>
     <script src="contextmenu.js"></script>
     <script src="resizer.js"></script>
     <script src="favorites.js"></script>
+    <script src="tab-utils.js"></script>
+    <script src="tabs.js"></script>
+    <script src="start-page.js"></script>
     <script src="export.js"></script>
     <script src="app.js"></script>
   </body>
