@@ -271,8 +271,8 @@
       docText: (doc) => docOf(doc).toString(),
       isDocDirty: (doc) => !doc.saved.eq(docOf(doc)),
       isDirty: () => !current.saved.eq(view.state.doc),
-      markSaved() {
-        current.saved = view.state.doc;
+      markSaved(doc = current) {
+        doc.saved = docOf(doc);
       },
       isSource: () => current.source,
       toggleSource() {

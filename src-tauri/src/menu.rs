@@ -4,6 +4,7 @@
 //! `文字\t快捷键` 的形式显示，按键统一由前端 `app.js` 的 KEYMAP 处理。
 //! 菜单 id 形如 `命令` 或 `命令:参数`，由 lib.rs 转为前端的 `command` 事件。
 
+use serde::Deserialize;
 use tauri::menu::{
     CheckMenuItemBuilder, Menu, MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
 };
@@ -11,6 +12,16 @@ use tauri::{AppHandle, Runtime};
 
 pub const ABOUT: &str = "about";
 pub const HOMEPAGE: &str = "homepage";
+
+/// 随标签状态变化的菜单启用状态（specs/008 FR-823）。
+#[derive(Clone, Copy, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TabMenu {
+    has_doc: bool,
+    any_dirty: bool,
+    can_close_others: bool,
+    can_reopen: bool,
+}
 
 fn item<R: Runtime>(app: &AppHandle<R>, id: &str, label: &str, shortcut: &str) -> tauri::Result<MenuItem<R>> {
     let text = if shortcut.is_empty() {
@@ -27,8 +38,14 @@ pub fn build<R: Runtime>(
     theme: &str,
     sample: &str,
     (favorited, can_favorite): (bool, bool),
+    tab: TabMenu,
 ) -> tauri::Result<Menu<R>> {
     let i = |id: &str, label: &str, shortcut: &str| item(app, id, label, shortcut);
+    let when = |enabled: bool, id: &str, label: &str, shortcut: &str| -> tauri::Result<MenuItem<R>> {
+        let m = item(app, id, label, shortcut)?;
+        m.set_enabled(enabled)?;
+        Ok(m)
+    };
     let sep = || PredefinedMenuItem::separator(app);
 
     let mut recent_menu = SubmenuBuilder::new(app, "最近打开");
@@ -59,11 +76,23 @@ pub fn build<R: Runtime>(
             .build(app)?,
         )
         .item(&sep()?)
-        .item(&i("save", "保存", "Ctrl+S")?)
-        .item(&i("save-as", "另存为…", "Ctrl+Shift+S")?)
+        .item(&when(tab.has_doc, "save", "保存", "Ctrl+S")?)
+        .item(&when(tab.has_doc, "save-as", "另存为…", "Ctrl+Shift+S")?)
+        .item(&when(tab.any_dirty, "save-all", "全部保存", "Ctrl+Alt+S")?)
+        .item(&sep()?)
+        .item(&when(tab.has_doc, "close-tab", "关闭标签", "Ctrl+W")?)
+        .item(&when(tab.can_close_others, "close-others", "关闭其他标签", "")?)
+        .item(&when(tab.has_doc, "close-all", "关闭全部标签", "")?)
+        .item(&when(
+            tab.can_reopen,
+            "reopen-tab",
+            "重新打开关闭的标签",
+            "Ctrl+Shift+T",
+        )?)
         .item(&sep()?)
         .item(
             &SubmenuBuilder::new(app, "导出")
+                .enabled(tab.has_doc)
                 .item(&i("export-html", "HTML…", "")?)
                 .item(&i("export-pdf", "PDF…", "")?)
                 .build()?,
@@ -78,11 +107,11 @@ pub fn build<R: Runtime>(
         .item(&PredefinedMenuItem::paste(app, Some("粘贴"))?)
         .item(&PredefinedMenuItem::select_all(app, Some("全选"))?)
         .item(&sep()?)
-        .item(&i("find", "查找", "Ctrl+F")?)
-        .item(&i("replace", "替换", "Ctrl+H")?)
+        .item(&when(tab.has_doc, "find", "查找", "Ctrl+F")?)
+        .item(&when(tab.has_doc, "replace", "替换", "Ctrl+H")?)
         .build()?;
 
-    let mut paragraph = SubmenuBuilder::new(app, "段落(&P)");
+    let mut paragraph = SubmenuBuilder::new(app, "段落(&P)").enabled(tab.has_doc);
     for n in 1..=6 {
         paragraph = paragraph.item(&i(
             &format!("heading:{n}"),
@@ -106,6 +135,7 @@ pub fn build<R: Runtime>(
         .build()?;
 
     let format = SubmenuBuilder::new(app, "格式(&O)")
+        .enabled(tab.has_doc)
         .item(&i("bold", "加粗", "Ctrl+B")?)
         .item(&i("italic", "斜体", "Ctrl+I")?)
         .item(&i("underline", "下划线", "Ctrl+U")?)
@@ -115,7 +145,7 @@ pub fn build<R: Runtime>(
         .build()?;
 
     let view = SubmenuBuilder::new(app, "视图(&V)")
-        .item(&i("source-mode", "源代码模式", "Ctrl+/")?)
+        .item(&when(tab.has_doc, "source-mode", "源代码模式", "Ctrl+/")?)
         .item(&sep()?)
         .item(&i("toggle-sidebar", "显示/隐藏侧边栏", "Ctrl+Shift+L")?)
         .item(&i("sidebar-outline", "大纲", "Ctrl+Shift+1")?)

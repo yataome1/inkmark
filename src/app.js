@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage */
 'use strict';
 
 const api = window.inkmark;
@@ -10,19 +10,11 @@ const state = {
   get path() {
     return tabs.current.path;
   },
-  set path(value) {
-    tabs.current.path = value;
-    tabs.render();
-  },
   get format() {
     return tabs.current.format;
   },
   get dirty() {
     return tabs.current.dirty;
-  },
-  set dirty(value) {
-    tabs.current.dirty = value;
-    tabs.update(tabs.current);
   },
   settings: null,
   focus: false,
@@ -34,7 +26,7 @@ let editor;
 
 const basename = (p) => p.split(/[\\/]/).pop();
 const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
-const tabTitle = (tab) => (tab.path ? basename(tab.path) : `未命名-${tab.untitledNo}`);
+const tabTitle = (tab) => (tab.kind === 'start' ? '开始' : tab.path ? basename(tab.path) : `未命名-${tab.untitledNo}`);
 const docName = () => tabTitle(tabs.current);
 const isMarkdownPath = (p) => /\.(md|markdown|mdown|txt)$/i.test(p);
 
@@ -57,20 +49,24 @@ function debounce(fn, ms) {
 }
 
 const modeElement = () => editor.dom;
+const isStart = () => tabs.current?.kind === 'start';
 
 // ---------------------------------------------------------------- 文档状态（FR-005/006）
 
 function updateTitle() {
-  api.setTitle(`${state.dirty ? '• ' : ''}${docName()} - Inkmark`);
+  api.setTitle(isStart() ? 'Inkmark' : `${state.dirty ? '• ' : ''}${docName()} - Inkmark`);
 }
 
-function refreshDirty() {
-  const dirty = editor.isDirty();
-  if (dirty !== state.dirty) {
-    state.dirty = dirty;
-    updateTitle();
-  }
+function syncDirty(tab) {
+  const dirty = editor.isDocDirty(tab.doc);
+  if (dirty === tab.dirty) return;
+  tab.dirty = dirty;
+  tabs.update(tab);
+  if (tab === tabs.current) updateTitle();
+  updateTabMenu();
 }
+
+const refreshDirty = () => syncDirty(tabs.current);
 
 const refreshPanels = debounce(() => updatePanels(), 250);
 
@@ -93,15 +89,66 @@ async function imageUrl(src) {
 function updatePanels() {
   const md = editor.getValue();
   const { words, chars } = TextUtils.countWords(md);
-  $('#status-count').textContent = `${words} 词 · ${chars} 字符`;
+  $('#status-count').textContent = isStart() ? '' : `${words} 词 · ${chars} 字符`;
   renderOutline(md);
 }
 
 // ---------------------------------------------------------------- 标签（specs/008）
 
-const tabs = Tabs.create({ bar: $('#tabbar'), onSelect: showTab, onNew: newTab, title: tabTitle });
+const tabs = Tabs.create({
+  bar: $('#tabbar'),
+  onSelect: (tab) => busy || showTab(tab),
+  onClose: (tab) => tab.kind === 'start' || closeTabs([tab]),
+  onNew: newTab,
+  title: tabTitle,
+});
+const closedTabs = []; // 本次运行关闭的文件标签，后关闭的在末尾（US3-5）
+const MAX_CLOSED = 20;
+let busy = false; // 关闭或全部保存的询问进行中
+
+const startPage = StartPage.create({
+  root: $('#start-page'),
+  actions: () => [
+    { icon: '+', label: '新建空白 Markdown', shortcut: 'Ctrl+N', run: newTab },
+    { icon: '↗', label: '打开文件…', shortcut: 'Ctrl+O', run: () => run('open') },
+    { icon: '▸', label: '打开文件夹…', shortcut: 'Ctrl+Shift+O', run: () => run('open-folder') },
+    ...(closedTabs.length ? [{ icon: '↺', label: '恢复关闭的标签', shortcut: 'Ctrl+Shift+T', run: () => run('reopen-tab') }] : []),
+    { icon: '?', label: '查看示例文档', run: async () => openPath(await api.sampleDoc()) },
+  ],
+  recent: () => state.settings.recent,
+  favorites: () => state.settings.favorites,
+  pathInfo: api.pathInfo,
+  openFile: (p) => openPath(p),
+  openFolder: (p) => openFolderInSidebar(p),
+  setRecent: async (recent) => {
+    state.settings = await api.setSettings({ recent });
+  },
+});
+
+let lastTabMenu = '';
+function updateTabMenu() {
+  const start = isStart();
+  const menu = {
+    hasDoc: !start,
+    anyDirty: tabs.list.some((t) => t.dirty),
+    canCloseOthers: !start && tabs.list.length > 1,
+    canReopen: closedTabs.length > 0,
+  };
+  const key = JSON.stringify(menu);
+  if (key !== lastTabMenu) {
+    lastTabMenu = key;
+    api.setTabMenu(menu);
+  }
+}
 
 function showTab(tab) {
+  const start = tab.kind === 'start';
+  editorEl.hidden = start;
+  $('#start-page').hidden = !start;
+  if (start) {
+    findbar.hidden = true;
+    $('#find-count').textContent = '';
+  }
   editor.activate(tab.doc);
   tabs.select(tab);
   updateTitle();
@@ -110,12 +157,28 @@ function showTab(tab) {
   updateStatus();
   if (!findbar.hidden) refreshFind();
   else if (Finder.ranges(editor.view.state).length) Finder.clear(editor.view);
-  editor.focus();
+  updateTabMenu();
+  if (start) {
+    startPage.render();
+  } else {
+    editor.view.requestMeasure();
+    editor.focus();
+  }
 }
+
+const startFields = () => ({
+  kind: 'start',
+  path: null,
+  untitledNo: 0,
+  format: { bom: false, eol: '\n' },
+  doc: editor.createDoc(''),
+  dirty: false,
+});
 
 function docFields(doc) {
   const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
   return {
+    kind: 'doc',
     path: doc ? TabUtils.normalizePath(doc.path) : null,
     untitledNo: doc ? 0 : TabUtils.nextUntitled(tabs.list.map((t) => t.untitledNo)),
     format: { bom, eol },
@@ -126,13 +189,19 @@ function docFields(doc) {
 
 /** 新建未命名标签，放在当前标签右侧（US1-4） */
 function newTab() {
+  if (isStart()) {
+    Object.assign(tabs.current, docFields(null));
+    tabs.render();
+    showTab(tabs.current);
+    return;
+  }
   const tab = docFields(null);
   tabs.insert(tab, tabs.list.indexOf(tabs.current) + 1);
   showTab(tab);
 }
 
 /** 在新标签中显示已读取的文档；已打开时切换到已有标签；唯一的空白标签被复用（FR-802） */
-function showDoc(doc) {
+function showDoc(doc, index) {
   const existing = tabs.find(TabUtils.pathKey(doc.path));
   if (existing) {
     showTab(existing);
@@ -140,43 +209,133 @@ function showDoc(doc) {
     return;
   }
   const only = tabs.list.length === 1 && tabs.list[0];
-  if (only && !only.path && !editor.isDocDirty(only.doc)) {
+  if (only && (only.kind === 'start' || (!only.path && !editor.isDocDirty(only.doc)))) {
     Object.assign(only, docFields(doc));
     tabs.render();
     showTab(only);
     return;
   }
   const tab = docFields(doc);
-  tabs.insert(tab);
+  tabs.insert(tab, index);
   showTab(tab);
 }
 
-async function save(as = false) {
-  const content = DocFormat.join(editor.getValue(), state.format);
-  const suggested = state.path || `${docName()}.md`;
-  const p = as || !state.path ? await api.saveAs(content, suggested) : await api.saveFile(state.path, content);
-  if (!p) return false;
-  if (p !== state.path) {
-    state.path = TabUtils.normalizePath(p);
-    highlightTreeCurrent();
+/** 让用户选择另存为路径；目标已在其他标签打开时不写入（FR-802、边界情况） */
+async function askSavePath(tab) {
+  for (;;) {
+    const p = await api.askSavePath(tab.path || `${tabTitle(tab)}.md`);
+    if (!p) return null;
+    const other = tabs.find(TabUtils.pathKey(p));
+    if (!other || other === tab) return p;
+    const choice = await api.confirmSaveConflict(basename(p));
+    if (choice === 'switch') {
+      showTab(other);
+      tabs.flash(other);
+    }
+    if (choice !== 'retry') return null;
   }
-  editor.markSaved();
-  state.dirty = true; // 强制 refreshDirty 发出更新
-  refreshDirty();
-  updateTitle();
+}
+
+/** 保存的唯一入口；未命名或另存为时先切换到该标签再询问路径。成功返回 true */
+async function saveTab(tab, as = false) {
+  let path = tab.path;
+  if (as || !path) {
+    if (tab !== tabs.current) showTab(tab);
+    path = await askSavePath(tab);
+    if (!path) return false;
+  }
+  try {
+    await api.saveFile(path, DocFormat.join(editor.docText(tab.doc), tab.format));
+  } catch (e) {
+    alert(`无法保存文件：\n${path}\n${e}`);
+    return false;
+  }
+  if (path !== tab.path) {
+    tab.path = TabUtils.normalizePath(path);
+    tabs.render();
+    if (tab === tabs.current) highlightTreeCurrent();
+  }
+  editor.markSaved(tab.doc);
+  syncDirty(tab);
+  if (tab === tabs.current) updateTitle();
   return true;
 }
+
+/** 全部保存（US6）：写入失败时继续其余文件；取消另存为时跳过其余未命名标签 */
+async function saveAll() {
+  if (busy) return;
+  const dirty = tabs.list.filter((t) => editor.isDocDirty(t.doc));
+  if (!dirty.length) return;
+  const origin = tabs.current;
+  let saved = 0;
+  let finished = true;
+  busy = true;
+  try {
+    for (const tab of dirty.filter((t) => t.path)) if (await saveTab(tab)) saved++;
+    for (const tab of dirty.filter((t) => !t.path)) {
+      finished = await saveTab(tab);
+      if (!finished) break;
+      saved++;
+    }
+  } finally {
+    busy = false;
+  }
+  if (finished && tabs.current !== origin) showTab(origin);
+  $('#status-flags').textContent = `已保存 ${saved} 个文件`;
+}
+
+/** 处理 targets 中未保存的修改，返回 true 表示可以关闭（宪章 IV、FR-806、FR-819） */
+async function settleDirty(targets) {
+  const dirty = targets.filter((t) => editor.isDocDirty(t.doc));
+  if (!dirty.length) return true;
+  if (dirty.length === 1) {
+    showTab(dirty[0]);
+    return confirmLeave();
+  }
+  const choice = await api.confirmDiscardAll(dirty.map(tabTitle));
+  if (choice !== 'save') return choice === 'discard';
+  for (const tab of [...dirty.filter((t) => t.path), ...dirty.filter((t) => !t.path)]) {
+    if (!(await saveTab(tab))) return false;
+  }
+  return true;
+}
+
+function removeTabs(targets) {
+  for (const tab of targets) if (tab.path) closedTabs.push({ path: tab.path, index: tabs.list.indexOf(tab) });
+  closedTabs.splice(0, closedTabs.length - MAX_CLOSED);
+  let next = TabUtils.nextAfterClose(tabs.list, tabs.current, targets);
+  if (!next) {
+    next = startFields();
+    tabs.insert(next);
+  }
+  if (next !== tabs.current) showTab(next);
+  tabs.remove(targets);
+  updateTabMenu();
+  if (!isStart()) editor.focus();
+}
+
+async function closeTabs(targets) {
+  if (busy || !targets.length) return;
+  busy = true;
+  try {
+    if (await settleDirty(targets)) removeTabs(targets);
+  } finally {
+    busy = false;
+  }
+}
+
+const documentTabs = () => tabs.list.filter((t) => t.kind !== 'start');
 
 /** 返回 true 表示可以继续丢弃当前文档（宪章 IV） */
 async function confirmLeave() {
   refreshDirty();
   if (!state.dirty) return true;
   const choice = await api.confirmDiscard(docName());
-  if (choice === 'save') return save();
+  if (choice === 'save') return saveTab(tabs.current);
   return choice === 'discard';
 }
 
-async function readAndShow(p) {
+async function readAndShow(p, index) {
   const existing = tabs.find(TabUtils.pathKey(p));
   if (existing) return showDoc(existing);
   let doc;
@@ -188,13 +347,13 @@ async function readAndShow(p) {
     state.settings = await api.setSettings({ recent });
     return;
   }
-  showDoc(doc);
+  showDoc(doc, index);
 }
 
 // 打开请求排队，连续打开多个文件时顺序不交错
 let openQueue = Promise.resolve();
-function openPath(p) {
-  openQueue = openQueue.then(() => readAndShow(p));
+function openPath(p, index) {
+  openQueue = openQueue.then(() => readAndShow(p, index));
   return openQueue;
 }
 
@@ -243,7 +402,7 @@ async function setSidebar(patch) {
 }
 
 function updateStatus() {
-  $('#status-mode').textContent = editor.isSource() ? '源代码模式' : '即时渲染';
+  $('#status-mode').textContent = isStart() ? '' : editor.isSource() ? '源代码模式' : '即时渲染';
   $('#status-flags').textContent = [state.focus && '专注', state.typewriter && '打字机'].filter(Boolean).join(' · ');
   editorEl.classList.toggle('focus-mode', state.focus);
   editorEl.classList.toggle('typewriter-mode', state.typewriter);
@@ -357,14 +516,16 @@ const favorites = Favorites.create({
   },
   pathInfo: api.pathInfo,
   openFile: (p) => openPath(p),
-  openFolder: async (p) => {
-    await showFolder(p);
-    state.settings = await api.setSettings({ folder: p });
-    await setSidebar({ visible: true, tab: 'files' });
-  },
+  openFolder: openFolderInSidebar,
   currentPath: () => state.path,
   onChange: refreshStars,
 });
+
+async function openFolderInSidebar(p) {
+  await showFolder(p);
+  state.settings = await api.setSettings({ folder: p });
+  await setSidebar({ visible: true, tab: 'files' });
+}
 
 function setStar(button, path) {
   const on = favorites.has(path);
@@ -528,8 +689,17 @@ const COMMANDS = {
     await setSidebar({ visible: true, tab: 'files' });
   },
   'clear-recent': async () => (state.settings = await api.setSettings({ recent: [] })),
-  save: () => save(false),
-  'save-as': () => save(true),
+  save: () => saveTab(tabs.current),
+  'save-as': () => saveTab(tabs.current, true),
+  'save-all': saveAll,
+  'close-tab': () => isStart() || closeTabs([tabs.current]),
+  'close-others': () => closeTabs(tabs.list.filter((t) => t !== tabs.current)),
+  'close-all': () => closeTabs(documentTabs()),
+  'reopen-tab': () => {
+    const item = closedTabs.pop();
+    updateTabMenu();
+    if (item) openPath(item.path, item.index);
+  },
   'export-html': () => exportAs('html'),
   'export-pdf': () => exportAs('pdf'),
   find: () => showFindbar(false),
@@ -564,8 +734,24 @@ function setZoom(z) {
   api.setZoom(zoom);
 }
 
+// 起始页不是文档，这些命令不可用（FR-815）
+const DOCUMENT_COMMANDS = new Set([
+  'save',
+  'save-as',
+  'export-html',
+  'export-pdf',
+  'find',
+  'replace',
+  'source-mode',
+  'table',
+  'table-insert-row',
+  'table-delete-row',
+  'toggle-favorite-current',
+]);
+
 function run(cmd, arg) {
   if (!editor) return;
+  if (isStart() && (FORMAT[cmd] || DOCUMENT_COMMANDS.has(cmd))) return;
   if (FORMAT[cmd]) {
     if (!modeElement().contains(getSelection().anchorNode)) editor.focus();
     FORMAT[cmd](arg);
@@ -582,6 +768,9 @@ const KEYMAP = {
   'Ctrl+Shift+KeyO': ['open-folder'],
   'Ctrl+KeyS': ['save'],
   'Ctrl+Shift+KeyS': ['save-as'],
+  'Ctrl+Alt+KeyS': ['save-all'],
+  'Ctrl+KeyW': ['close-tab'],
+  'Ctrl+Shift+KeyT': ['reopen-tab'],
   'Ctrl+Equal': ['zoom-in'],
   'Ctrl+Minus': ['zoom-out'],
   'Ctrl+Shift+Digit9': ['zoom-reset'],
@@ -651,7 +840,8 @@ editorEl.addEventListener(
 api.onDragDrop(async ({ type, paths }) => {
   if (type !== 'drop' || !paths?.length || !editor) return;
   const docs = paths.filter(isMarkdownPath);
-  if (docs.length) return Promise.all(docs.map(openPath));
+  if (docs.length) return Promise.all(docs.map((p) => openPath(p)));
+  if (isStart()) return;
   for (const p of paths) {
     try {
       const src = await api.saveImageFromPath(state.path, p);
@@ -682,17 +872,13 @@ $('#open-folder').addEventListener('click', () => run('open-folder'));
 api.onCommand(({ cmd, arg }) => run(cmd, arg));
 api.onOpenFile((p) => run('open-path', p));
 api.onCloseRequested(async (e) => {
-  for (const tab of [...tabs.list]) {
-    if (!editor.isDocDirty(tab.doc)) continue;
-    showTab(tab);
-    if (!(await confirmLeave())) return e.preventDefault();
-  }
+  if (busy || !(await settleDirty(tabs.list))) e.preventDefault();
 });
 
 (async () => {
   state.settings = await api.getSettings();
   editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
-  const first = docFields(null);
+  const first = startFields();
   tabs.insert(first);
   showTab(first);
   applySidebar();

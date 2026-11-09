@@ -51,7 +51,7 @@ src/
 ├── live-preview.js  改：切换时重置 jump、dragging
 ├── platform.js      改：拆分另存为、汇总询问、复制路径、新 IPC
 ├── index.html       改：#tabbar、#start-page、新脚本
-├── styles.css       改：标签栏、起始页；#app 改为占据标签栏以下的高度
+├── styles.css       改：标签栏、起始页
 src-tauri/src/
 ├── lib.rs           改：多文件参数、set_tab_menu、reveal_path
 ├── menu.rs          改：文件菜单、视图→标签子菜单、按状态启用
@@ -97,7 +97,7 @@ tab = { id, kind: 'doc' | 'start', path, untitledNo, format, doc /* 懒加载前
 
 ### 标签栏
 
-- `#tabbar` 放在 `#app` 之前，横跨整个窗口宽度，与起始页示意图一致。
+- `#tabbar` 放在 `#main` 顶部，位于侧边栏右侧；侧边栏属于窗口，不随标签变化。
 - 宽度：弹性分配到最小宽度后 `overflow-x: auto`，当前标签 `scrollIntoView`。
 - 连续关闭：鼠标在标签栏内关闭标签时，把其余标签宽度固定为当前像素值，`pointerleave` 时解除（FR-824）。
 - 同名区分：`tab-utils.labels(paths)` 为重名的文件逐级向上取目录名，直到可以区分。
@@ -122,6 +122,7 @@ tab = { id, kind: 'doc' | 'start', path, untitledNo, format, doc /* 懒加载前
 | `app_ready` | 前端 → Rust | 返回值由单个路径改为路径数组（FR-812） |
 | `open-file` 事件 | Rust → 前端 | 载荷由单个路径改为路径数组 |
 | `set_tab_menu(state)` | 前端 → Rust | 新增：全部保存、关闭类、重新打开、是否有文档等启用状态，以及恢复设置的勾选；状态变化时才重建菜单 |
+| `sample_doc()` | 前端 → Rust | 新增：起始页“查看示例文档”的路径 |
 | `reveal_path(path)` | 前端 → Rust | 新增：在资源管理器中显示，仅限存在的 Markdown 文件 |
 | `set_settings` | 前端 → Rust | `restoreTabs` 变化时刷新菜单 |
 

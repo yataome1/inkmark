@@ -27,6 +27,15 @@ test('hints: 一个文件在根目录时另一个仍可区分', () => {
   assert.deepEqual(T.hints(['D:\\b.md', 'D:\\a\\b.md']), ['D:', 'a']);
 });
 
+test('nextAfterClose: 先右后左，当前标签未关闭时不变，全部关闭时为 null', () => {
+  const [a, b, c] = ['a', 'b', 'c'];
+  assert.equal(T.nextAfterClose([a, b, c], b, [b]), c);
+  assert.equal(T.nextAfterClose([a, b, c], c, [c]), b);
+  assert.equal(T.nextAfterClose([a, b, c], a, [c]), a);
+  assert.equal(T.nextAfterClose([a, b, c], b, [b, c]), a);
+  assert.equal(T.nextAfterClose([a, b], a, [a, b]), null);
+});
+
 test('nextUntitled: 取未被占用的最小编号', () => {
   assert.equal(T.nextUntitled([]), 1);
   assert.equal(T.nextUntitled([1, 3]), 2);

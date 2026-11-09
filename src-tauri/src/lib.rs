@@ -20,6 +20,7 @@ struct AppState {
     initial_file: Mutex<Option<String>>,
     /// 当前文件是否已收藏、当前文件能否收藏（已保存），决定“文件”菜单的文字与可用状态
     favorite_menu: Mutex<(bool, bool)>,
+    tab_menu: Mutex<menu::TabMenu>,
 }
 
 #[derive(Serialize)]
@@ -58,7 +59,8 @@ fn refresh_menu(app: &AppHandle) {
         (s.recent(), s.theme().to_string())
     };
     let favorite = *state.favorite_menu.lock().unwrap();
-    if let Ok(m) = menu::build(app, &recent, &theme, &sample_path(app), favorite) {
+    let tab = *state.tab_menu.lock().unwrap();
+    if let Ok(m) = menu::build(app, &recent, &theme, &sample_path(app), favorite, tab) {
         let _ = app.set_menu(m);
     }
 }
@@ -121,6 +123,19 @@ fn set_favorite_menu(app: AppHandle, state: State<AppState>, favorited: bool, en
     if changed {
         refresh_menu(&app);
     }
+}
+
+#[tauri::command]
+fn set_tab_menu(app: AppHandle, state: State<AppState>, tab_menu: menu::TabMenu) {
+    let changed = std::mem::replace(&mut *state.tab_menu.lock().unwrap(), tab_menu) != tab_menu;
+    if changed {
+        refresh_menu(&app);
+    }
+}
+
+#[tauri::command]
+fn sample_doc(app: AppHandle) -> String {
+    sample_path(&app)
 }
 
 #[tauri::command]
@@ -241,6 +256,8 @@ pub fn run() {
             list_dir,
             path_info,
             set_favorite_menu,
+            set_tab_menu,
+            sample_doc,
             save_image,
             save_image_from_path,
             allow_image,
@@ -260,6 +277,7 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 initial_file: Mutex::new(file_from_args(&args, &cwd)),
                 favorite_menu: Mutex::new((false, false)),
+                tab_menu: Mutex::new(menu::TabMenu::default()),
             });
 
             let handle = app.handle().clone();

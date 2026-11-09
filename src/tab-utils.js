@@ -50,7 +50,15 @@
     return n;
   }
 
-  const api = { normalizePath, pathKey, hints, nextUntitled };
+  /** 关闭 closing 后应显示的标签：当前标签不关闭则不变，否则先右后左取最近的，没有时为 null */
+  function nextAfterClose(list, current, closing) {
+    if (!closing.includes(current)) return current;
+    const i = list.indexOf(current);
+    const keep = (t) => !closing.includes(t);
+    return list.slice(i + 1).find(keep) ?? list.slice(0, i).reverse().find(keep) ?? null;
+  }
+
+  const api = { normalizePath, pathKey, hints, nextUntitled, nextAfterClose };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TabUtils = api;
 })(this);

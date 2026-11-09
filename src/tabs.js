@@ -3,8 +3,8 @@
 'use strict';
 
 (function (root) {
-  /** @param {{ bar: HTMLElement, onSelect: (tab: object) => void, onNew: () => void, title: (tab: object) => string }} options */
-  function create({ bar, onSelect, onNew, title }) {
+  /** @param {{ bar: HTMLElement, onSelect: (tab: object) => void, onClose: (tab: object) => void, onNew: () => void, title: (tab: object) => string }} options */
+  function create({ bar, onSelect, onClose, onNew, title }) {
     const list = [];
     let current = null;
     const elements = new Map();
@@ -29,11 +29,20 @@
       name.className = 'tab-name';
       const hint = document.createElement('span');
       hint.className = 'tab-hint';
-      const mark = document.createElement('span');
-      mark.className = 'tab-mark';
-      mark.setAttribute('aria-hidden', 'true');
-      el.append(name, hint, mark);
+      const close = document.createElement('button');
+      close.className = 'tab-close';
+      close.tabIndex = -1;
+      close.textContent = '×';
+      close.title = '关闭标签 (Ctrl+W)';
+      close.setAttribute('aria-label', '关闭标签');
+      close.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClose(tab);
+      });
+      el.append(name, hint, close);
       el.addEventListener('click', () => onSelect(tab));
+      el.addEventListener('mousedown', (e) => e.button === 1 && e.preventDefault());
+      el.addEventListener('auxclick', (e) => e.button === 1 && onClose(tab));
       elements.set(tab, el);
       return el;
     }
@@ -41,6 +50,7 @@
     function refresh(tab) {
       const el = element(tab);
       el.classList.toggle('dirty', tab.dirty);
+      el.classList.toggle('start', tab.kind === 'start');
       el.classList.toggle('active', tab === current);
       el.setAttribute('aria-selected', tab === current ? 'true' : 'false');
     }
@@ -69,6 +79,13 @@
       find: (key) => list.find((t) => t.path && TabUtils.pathKey(t.path) === key),
       insert(tab, index = list.length) {
         list.splice(index, 0, tab);
+        render();
+      },
+      remove(targets) {
+        for (const tab of targets) {
+          list.splice(list.indexOf(tab), 1);
+          elements.delete(tab);
+        }
         render();
       },
       render,

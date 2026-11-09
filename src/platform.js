@@ -13,9 +13,12 @@
     { name: '所有文件', extensions: ['*'] },
   ];
 
-  async function saveAs(content, suggestedName) {
-    const path = await T.dialog.save({ defaultPath: suggestedName || '未命名.md', filters: MD_FILTERS });
-    return path ? invoke('save_file', { path, content }) : null;
+  /** 三个按钮的对话框，返回 'yes' | 'no' | 'cancel' */
+  async function askThree(message, title, yes, no, cancel) {
+    const r = await T.dialog.message(message, { title, kind: 'warning', buttons: { yes, no, cancel } });
+    if (r === yes || r === 'Yes') return 'yes';
+    if (r === no || r === 'No') return 'no';
+    return 'cancel';
   }
 
   async function askExportPath(defaultPath, ext, label) {
@@ -34,8 +37,8 @@
       if (folder) await invoke('set_settings', { patch: { folder } });
       return folder;
     },
-    saveFile: (path, content) => (path ? invoke('save_file', { path, content }) : saveAs(content)),
-    saveAs,
+    saveFile: (path, content) => invoke('save_file', { path, content }),
+    askSavePath: (defaultPath) => T.dialog.save({ defaultPath, filters: MD_FILTERS }),
     listDir: (dir) => invoke('list_dir', { dir }),
     pathInfo: (paths) => invoke('path_info', { paths }),
     setFavoriteMenu: (favorited, enabled) => invoke('set_favorite_menu', { favorited, enabled }),
@@ -45,15 +48,29 @@
     toAssetUrl: (path) => T.core.convertFileSrc(path),
     /** @returns {Promise<'save'|'discard'|'cancel'>} */
     async confirmDiscard(name) {
-      const r = await T.dialog.message('如果不保存，你的修改将会丢失。', {
-        title: `是否保存对“${name}”的修改？`,
-        kind: 'warning',
-        buttons: { yes: '保存', no: '不保存', cancel: '取消' },
-      });
-      if (r === '保存' || r === 'Yes') return 'save';
-      if (r === '不保存' || r === 'No') return 'discard';
-      return 'cancel';
+      const r = await askThree('如果不保存，你的修改将会丢失。', `是否保存对“${name}”的修改？`, '保存', '不保存', '取消');
+      return { yes: 'save', no: 'discard', cancel: 'cancel' }[r];
     },
+    /** @returns {Promise<'save'|'discard'|'cancel'>} */
+    async confirmDiscardAll(names) {
+      const shown = names.slice(0, 10).join('\n');
+      const more = names.length > 10 ? `\n等 ${names.length} 个文件` : '';
+      const r = await askThree(
+        `${shown}${more}\n\n如果不保存，这些修改将会丢失。`,
+        `是否保存对 ${names.length} 个文件的修改？`,
+        '全部保存',
+        '全部不保存',
+        '取消',
+      );
+      return { yes: 'save', no: 'discard', cancel: 'cancel' }[r];
+    },
+    /** @returns {Promise<'retry'|'switch'|'cancel'>} */
+    async confirmSaveConflict(name) {
+      const r = await askThree('同一个文件只能在一个标签中打开。', `“${name}”已在其他标签中打开`, '选择其他位置', '切换到该标签', '取消');
+      return { yes: 'retry', no: 'switch', cancel: 'cancel' }[r];
+    },
+    setTabMenu: (tabMenu) => invoke('set_tab_menu', { tabMenu }),
+    sampleDoc: () => invoke('sample_doc'),
     setTitle: (title) => win.setTitle(title),
     getSettings: () => invoke('get_settings'),
     async setSettings(patch) {
