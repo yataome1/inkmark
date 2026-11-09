@@ -14,9 +14,6 @@ use tauri::menu::{
 };
 use tauri::{AppHandle, Runtime};
 
-pub const ABOUT: &str = "about";
-pub const HOMEPAGE: &str = "homepage";
-
 /// 随标签状态变化的菜单启用状态（specs/008 FR-823）。
 #[derive(Clone, Copy, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -256,8 +253,15 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, sample: &str) -> tauri::Result<Menu
 
     let help = SubmenuBuilder::new(app, "帮助(&H)")
         .item(&i(&format!("open-path:{sample}"), "Markdown 示例文档", "")?)
-        .item(&i(HOMEPAGE, "项目主页", "")?)
-        .item(&i(ABOUT, "关于 Inkmark", "")?)
+        .item(&i("shortcuts", "键盘快捷键", "F1")?)
+        .item(&sep()?)
+        .item(&i("link:changelog", "更新日志", "")?)
+        .item(&i("link:issues", "报告问题", "")?)
+        .item(&i("link:releases", "获取新版", "")?)
+        .item(&i("link:home", "项目主页", "")?)
+        .item(&sep()?)
+        .item(&i("third-party", "第三方声明", "")?)
+        .item(&i("about", "关于 Inkmark", "")?)
         .build()?;
 
     MenuBuilder::new(app)

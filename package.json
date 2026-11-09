@@ -18,7 +18,7 @@
     "tauri",
     "wysiwyg"
   ],
-  "author": "yataome1 <zhangmian@outlook.com>",
+  "author": "zhangmian",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {

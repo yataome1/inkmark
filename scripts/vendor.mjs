@@ -3,7 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 import { build } from 'esbuild';
+import { writeThirdParty } from './third-party.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -67,6 +69,21 @@ for (const name of [
   if (!license) throw new Error(`缺少许可证文件：${name}`);
   copy(mod(name, license), `licenses/${name.replace('/', '__')}.txt`);
 }
+
+// 关于对话框（specs/009）
+copy(path.join(root, 'LICENSE'), 'LICENSE.txt');
+copy(path.join(root, 'src-tauri/icons/128x128.png'), 'icon.png');
+let commit = null;
+try {
+  commit = execSync('git rev-parse --short HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+    .toString()
+    .trim();
+} catch {
+  // 不在 git 仓库中构建：显示为未知
+}
+fs.writeFileSync(path.join(dest, 'build-info.json'), JSON.stringify({ commit, date: new Date().toISOString().slice(0, 10) }));
+const count = writeThirdParty(root, path.join(dest, 'third-party.json'));
+console.log(`third-party: ${count} packages`);
 
 let bytes = 0;
 const walk = (dir) => {

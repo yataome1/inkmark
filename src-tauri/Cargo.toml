@@ -2,7 +2,7 @@
 name = "inkmark"
 version = "0.4.0"
 description = "A Typora-inspired local Markdown viewer & editor for Windows"
-authors = ["yataome1 <zhangmian@outlook.com>"]
+authors = ["zhangmian"]
 license = "MIT"
 repository = "https://github.com/yataome1/inkmark"
 edition = "2024"
