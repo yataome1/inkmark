@@ -105,6 +105,11 @@ fn save_file(app: AppHandle, state: State<AppState>, path: String, content: Stri
 }
 
 #[tauri::command]
+fn path_info(paths: Vec<String>) -> Vec<fileops::PathInfo> {
+    fileops::path_info(&paths)
+}
+
+#[tauri::command]
 fn list_dir(dir: String) -> CmdResult<Vec<fileops::Entry>> {
     fileops::list_dir(Path::new(&dir)).map_err(err)
 }
@@ -220,6 +225,7 @@ pub fn run() {
             read_file,
             save_file,
             list_dir,
+            path_info,
             save_image,
             save_image_from_path,
             allow_image,

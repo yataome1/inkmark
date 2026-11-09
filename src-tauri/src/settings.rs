@@ -13,7 +13,7 @@ pub struct Settings {
 }
 
 fn defaults() -> Value {
-    json!({ "theme": "system", "recent": [], "sidebar": { "visible": true, "tab": "outline" }, "folder": null })
+    json!({ "theme": "system", "recent": [], "sidebar": { "visible": true, "tab": "outline", "width": 260 }, "folder": null, "favorites": [] })
 }
 
 impl Settings {
@@ -86,6 +86,13 @@ mod tests {
         let s = Settings::load(temp_file("missing"));
         assert_eq!(s.theme(), "system");
         assert!(s.recent().is_empty());
+    }
+
+    #[test]
+    fn defaults_include_favorites_and_sidebar_width() {
+        let s = Settings::load(temp_file("defaults"));
+        assert_eq!(s.value()["favorites"], json!([]));
+        assert_eq!(s.value()["sidebar"]["width"], 260);
     }
 
     #[test]
