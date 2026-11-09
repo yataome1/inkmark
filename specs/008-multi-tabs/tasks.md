@@ -41,6 +41,6 @@
 
 ## 阶段 6：验证与文档
 
-- [ ] T823 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
-- [ ] T824 按验收场景验证，记录于 `checklist.md`；实测 NFR-805
-- [ ] T825 README、CHANGELOG，并在 001 的相关需求处注明变更
+- [x] T823 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
+- [x] T824 按验收场景验证，记录于 `checklist.md`；实测 NFR-805
+- [x] T825 README、CHANGELOG，并在 001 的相关需求处注明变更
