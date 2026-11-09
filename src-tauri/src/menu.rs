@@ -144,6 +144,22 @@ pub fn build<R: Runtime>(
         .item(&i("link", "超链接", "Ctrl+K")?)
         .build()?;
 
+    let mut tabs = SubmenuBuilder::new(app, "标签")
+        .enabled(tab.can_close_others)
+        .item(&i("next-tab", "下一个标签", "Ctrl+Tab")?)
+        .item(&i("prev-tab", "上一个标签", "Ctrl+Shift+Tab")?)
+        .item(&i("move-tab:1", "向右移动标签", "Ctrl+Shift+PageDown")?)
+        .item(&i("move-tab:-1", "向左移动标签", "Ctrl+Shift+PageUp")?)
+        .item(&sep()?);
+    for n in 1..=8 {
+        tabs = tabs.item(&i(
+            &format!("goto-tab:{n}"),
+            &format!("第 {n} 个标签"),
+            &format!("Alt+{n}"),
+        )?);
+    }
+    let tabs = tabs.item(&i("goto-tab:9", "最后一个标签", "Alt+9")?).build()?;
+
     let view = SubmenuBuilder::new(app, "视图(&V)")
         .item(&when(tab.has_doc, "source-mode", "源代码模式", "Ctrl+/")?)
         .item(&sep()?)
@@ -155,6 +171,8 @@ pub fn build<R: Runtime>(
         .item(&i("focus-mode", "专注模式", "F8")?)
         .item(&i("typewriter-mode", "打字机模式", "F9")?)
         .item(&i("fullscreen", "全屏", "F11")?)
+        .item(&sep()?)
+        .item(&tabs)
         .item(&sep()?)
         .item(&i("zoom-in", "放大", "Ctrl+=")?)
         .item(&i("zoom-out", "缩小", "Ctrl+-")?)

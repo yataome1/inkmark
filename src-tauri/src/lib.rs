@@ -138,6 +138,16 @@ fn sample_doc(app: AppHandle) -> String {
     sample_path(&app)
 }
 
+/// 只允许已存在的 Markdown 文件，不能借此打开任意路径（宪章 V）。
+#[tauri::command]
+fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
+    let p = Path::new(&path);
+    if !fileops::is_markdown(p) || !p.is_file() {
+        return Err("不是 Markdown 文件".into());
+    }
+    app.opener().reveal_item_in_dir(p).map_err(err)
+}
+
 #[tauri::command]
 fn list_dir(dir: String) -> CmdResult<Vec<fileops::Entry>> {
     fileops::list_dir(Path::new(&dir)).map_err(err)
@@ -258,6 +268,7 @@ pub fn run() {
             set_favorite_menu,
             set_tab_menu,
             sample_doc,
+            reveal_path,
             save_image,
             save_image_from_path,
             allow_image,

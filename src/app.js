@@ -100,6 +100,7 @@ const tabs = Tabs.create({
   onSelect: (tab) => busy || showTab(tab),
   onClose: (tab) => tab.kind === 'start' || closeTabs([tab]),
   onNew: newTab,
+  onMenu: showTabMenu,
   title: tabTitle,
 });
 const closedTabs = []; // 本次运行关闭的文件标签，后关闭的在末尾（US3-5）
@@ -325,6 +326,41 @@ async function closeTabs(targets) {
 }
 
 const documentTabs = () => tabs.list.filter((t) => t.kind !== 'start');
+
+function cycleTab(step) {
+  if (busy) return;
+  const n = tabs.list.length;
+  showTab(tabs.list[(tabs.list.indexOf(tabs.current) + step + n) % n]);
+}
+
+/** n 为 1..8 时跳到第 n 个，9 时跳到最后一个（US3-3） */
+function gotoTab(n) {
+  const tab = n === 9 ? tabs.list.at(-1) : tabs.list[n - 1];
+  if (tab && !busy) showTab(tab);
+}
+
+function reopenTab() {
+  const item = closedTabs.pop();
+  updateTabMenu();
+  if (item) openPath(item.path, item.index);
+}
+
+function showTabMenu(tab, x, y) {
+  const isDoc = tab.kind !== 'start';
+  const i = tabs.list.indexOf(tab);
+  const favorited = !!tab.path && favorites.has(tab.path);
+  ContextMenu.show(x, y, [
+    { label: '关闭', shortcut: 'Ctrl+W', disabled: !isDoc, action: () => closeTabs([tab]) },
+    { label: '关闭其他标签', disabled: tabs.list.length < 2, action: () => closeTabs(tabs.list.filter((t) => t !== tab)) },
+    { label: '关闭右侧标签', disabled: i === tabs.list.length - 1, action: () => closeTabs(tabs.list.slice(i + 1)) },
+    '-',
+    { label: '重新打开关闭的标签', shortcut: 'Ctrl+Shift+T', disabled: !closedTabs.length, action: reopenTab },
+    '-',
+    { label: '复制文件路径', disabled: !tab.path, action: () => navigator.clipboard.writeText(tab.path) },
+    { label: '在资源管理器中显示', disabled: !tab.path, action: () => api.revealPath(tab.path) },
+    { label: favorited ? '从收藏中移除' : '添加到收藏', disabled: !tab.path, action: () => favorites.toggle(tab.path, false) },
+  ]);
+}
 
 /** 返回 true 表示可以继续丢弃当前文档（宪章 IV） */
 async function confirmLeave() {
@@ -695,11 +731,11 @@ const COMMANDS = {
   'close-tab': () => isStart() || closeTabs([tabs.current]),
   'close-others': () => closeTabs(tabs.list.filter((t) => t !== tabs.current)),
   'close-all': () => closeTabs(documentTabs()),
-  'reopen-tab': () => {
-    const item = closedTabs.pop();
-    updateTabMenu();
-    if (item) openPath(item.path, item.index);
-  },
+  'reopen-tab': reopenTab,
+  'next-tab': () => cycleTab(1),
+  'prev-tab': () => cycleTab(-1),
+  'goto-tab': (n) => gotoTab(Number(n)),
+  'move-tab': (step) => tabs.move(tabs.current, tabs.list.indexOf(tabs.current) + Number(step)),
   'export-html': () => exportAs('html'),
   'export-pdf': () => exportAs('pdf'),
   find: () => showFindbar(false),
@@ -771,6 +807,13 @@ const KEYMAP = {
   'Ctrl+Alt+KeyS': ['save-all'],
   'Ctrl+KeyW': ['close-tab'],
   'Ctrl+Shift+KeyT': ['reopen-tab'],
+  'Ctrl+Tab': ['next-tab'],
+  'Ctrl+Shift+Tab': ['prev-tab'],
+  'Ctrl+PageDown': ['next-tab'],
+  'Ctrl+PageUp': ['prev-tab'],
+  'Ctrl+Shift+PageDown': ['move-tab', 1],
+  'Ctrl+Shift+PageUp': ['move-tab', -1],
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`Alt+Digit${n}`, ['goto-tab', n]])),
   'Ctrl+Equal': ['zoom-in'],
   'Ctrl+Minus': ['zoom-out'],
   'Ctrl+Shift+Digit9': ['zoom-reset'],
