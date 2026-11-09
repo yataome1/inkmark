@@ -10,7 +10,6 @@ use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State, Theme, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 const REPO_URL: &str = "https://github.com/yataome1/inkmark";
@@ -147,6 +146,78 @@ fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
     app.opener().reveal_item_in_dir(p).map_err(err)
 }
 
+#[derive(Serialize)]
+struct AppInfo {
+    version: String,
+    tauri: &'static str,
+    webview2: Option<String>,
+    windows: Option<String>,
+}
+
+#[repr(C)]
+struct OsVersionInfo {
+    size: u32,
+    major: u32,
+    minor: u32,
+    build: u32,
+    platform: u32,
+    service_pack: [u16; 128],
+}
+
+#[link(name = "ntdll")]
+unsafe extern "system" {
+    fn RtlGetVersion(info: *mut OsVersionInfo) -> i32;
+}
+
+fn windows_version() -> Option<String> {
+    let mut info = OsVersionInfo {
+        size: std::mem::size_of::<OsVersionInfo>() as u32,
+        major: 0,
+        minor: 0,
+        build: 0,
+        platform: 0,
+        service_pack: [0; 128],
+    };
+    // SAFETY: info 是按 OSVERSIONINFOW 布局初始化的有效结构，size 已设置
+    if unsafe { RtlGetVersion(&mut info) } != 0 {
+        return None;
+    }
+    let name = if info.build >= 22000 {
+        "11".to_string()
+    } else {
+        info.major.to_string()
+    };
+    Some(format!("Windows {name} (内部版本 {})", info.build))
+}
+
+#[tauri::command]
+fn app_info(app: AppHandle) -> AppInfo {
+    AppInfo {
+        version: app.package_info().version.to_string(),
+        tauri: tauri::VERSION,
+        webview2: tauri::webview_version().ok(),
+        windows: windows_version(),
+    }
+}
+
+/// 只能打开固定的项目地址（specs/009 FR-906）。
+fn link_url(kind: &str) -> Option<String> {
+    let path = match kind {
+        "home" => "",
+        "changelog" => "/blob/main/CHANGELOG.md",
+        "issues" => "/issues/new/choose",
+        "releases" => "/releases",
+        _ => return None,
+    };
+    Some(format!("{REPO_URL}{path}"))
+}
+
+#[tauri::command]
+fn open_link(app: AppHandle, kind: String) -> CmdResult<()> {
+    let url = link_url(&kind).ok_or("未知链接")?;
+    app.opener().open_url(url, None::<&str>).map_err(err)
+}
+
 #[tauri::command]
 fn list_dir(dir: String) -> CmdResult<Vec<fileops::Entry>> {
     fileops::list_dir(Path::new(&dir)).map_err(err)
@@ -225,24 +296,14 @@ async fn export_pdf(app: AppHandle, html: String, out: String) -> CmdResult<()> 
 // ---------------------------------------------------------------- 启动
 
 fn on_menu(app: &AppHandle, id: &str) {
-    match id {
-        menu::ABOUT => {
-            app.dialog()
-                .message(format!(
-                    "受 Typora 启发的本地 Markdown 查看与编辑器。\nTauri {} · CodeMirror\n{REPO_URL}",
-                    tauri::VERSION
-                ))
-                .title(format!("关于 Inkmark {}", app.package_info().version))
-                .show(|_| {});
+    if let Some(kind) = id.strip_prefix("link:") {
+        if let Some(url) = link_url(kind) {
+            let _ = app.opener().open_url(url, None::<&str>);
         }
-        menu::HOMEPAGE => {
-            let _ = app.opener().open_url(REPO_URL, None::<&str>);
-        }
-        _ => {
-            let (cmd, arg) = id.split_once(':').map_or((id, None), |(c, a)| (c, Some(a)));
-            let _ = app.emit_to("main", "command", json!({ "cmd": cmd, "arg": arg }));
-        }
+        return;
     }
+    let (cmd, arg) = id.split_once(':').map_or((id, None), |(c, a)| (c, Some(a)));
+    let _ = app.emit_to("main", "command", json!({ "cmd": cmd, "arg": arg }));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -271,6 +332,8 @@ pub fn run() {
             set_tab_menu,
             sample_doc,
             reveal_path,
+            app_info,
+            open_link,
             save_image,
             save_image_from_path,
             allow_image,
@@ -319,6 +382,12 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn link_url_only_accepts_known_kinds() {
+        assert_eq!(link_url("releases"), Some(format!("{REPO_URL}/releases")));
+        assert_eq!(link_url("https://example.com"), None);
+    }
 
     #[test]
     fn files_from_args_keeps_existing_markdown() {

@@ -72,6 +72,8 @@
     setTabMenu: (tabMenu) => invoke('set_tab_menu', { tabMenu }),
     sampleDoc: () => invoke('sample_doc'),
     revealPath: (path) => invoke('reveal_path', { path }),
+    appInfo: () => invoke('app_info'),
+    openLink: (kind) => invoke('open_link', { kind }),
     setTitle: (title) => win.setTitle(title),
     getSettings: () => invoke('get_settings'),
     async setSettings(patch) {

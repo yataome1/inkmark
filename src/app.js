@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About */
 'use strict';
 
 const api = window.inkmark;
@@ -790,6 +790,9 @@ const COMMANDS = {
     await showFolder(folder);
     await setSidebar({ visible: true, tab: 'files' });
   },
+  about: () => about.about(),
+  'third-party': () => about.thirdParty(),
+  shortcuts: () => about.shortcuts(),
   'clear-recent': async () => (state.settings = await api.setSettings({ recent: [] })),
   save: () => saveTab(tabs.current),
   'save-as': () => saveTab(tabs.current, true),
@@ -852,8 +855,10 @@ const DOCUMENT_COMMANDS = new Set([
   'toggle-favorite-current',
 ]);
 
+const about = About.create({ dialog: $('#about'), appInfo: api.appInfo, openLink: api.openLink });
+
 function run(cmd, arg) {
-  if (!editor) return;
+  if (!editor || about.isOpen()) return;
   if (isStart() && (FORMAT[cmd] || DOCUMENT_COMMANDS.has(cmd))) return;
   if (FORMAT[cmd]) {
     if (!modeElement().contains(getSelection().anchorNode)) editor.focus();
@@ -907,6 +912,7 @@ const KEYMAP = {
   'Ctrl+Shift+Digit1': ['sidebar-outline'],
   'Ctrl+Shift+Digit2': ['sidebar-favorites'],
   'Ctrl+Shift+Digit3': ['sidebar-files'],
+  F1: ['shortcuts'],
   F8: ['focus-mode'],
   F9: ['typewriter-mode'],
   F11: ['fullscreen'],
@@ -919,7 +925,7 @@ window.addEventListener(
   (e) => {
     const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
     const hit = KEYMAP[key];
-    if (!hit || !editor) return;
+    if (!hit || !editor || about.isOpen()) return;
     if (hit[0].startsWith('table-') && !TableUi.isActive()) return; // 只在表格单元格内生效
     if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
     e.preventDefault();
@@ -948,7 +954,7 @@ editorEl.addEventListener(
 
 // 拖入 Markdown 文件则打开；拖入图片则保存到 assets/ 并插入（FR-001、FR-011）
 api.onDragDrop(async ({ type, paths }) => {
-  if (type !== 'drop' || !paths?.length || !editor) return;
+  if (type !== 'drop' || !paths?.length || !editor || about.isOpen()) return;
   const docs = paths.filter(isMarkdownPath);
   if (docs.length) return Promise.all(docs.map((p) => openPath(p)));
   if (isStart()) return;

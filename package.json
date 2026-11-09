@@ -1,7 +1,7 @@
 {
   "name": "inkmark",
   "productName": "Inkmark",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "A Typora-inspired local Markdown viewer & editor for Windows",
   "scripts": {
@@ -18,7 +18,7 @@
     "tauri",
     "wysiwyg"
   ],
-  "author": "yataome1 <zhangmian@outlook.com>",
+  "author": "zhangmian",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
