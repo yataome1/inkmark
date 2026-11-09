@@ -45,7 +45,7 @@
 | 新建 / 打开 / 保存 | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` | 另存为 | `Ctrl+Shift+S` |
 | 打开文件夹 | `Ctrl+Shift+O` | 源代码模式 | `Ctrl+/` |
 | 1–6 级标题 / 段落 | `Ctrl+1…6` / `Ctrl+0` | 侧边栏 | `Ctrl+Shift+L` |
-| 加粗 / 斜体 / 下划线 | `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | 大纲 / 文件树 | `Ctrl+Shift+1` / `Ctrl+Shift+3` |
+| 加粗 / 斜体 / 下划线 | `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | 大纲 / 收藏 / 文件树 | `Ctrl+Shift+1` / `Ctrl+Shift+2` / `Ctrl+Shift+3` |
 | 删除线 | `Alt+Shift+5` | 专注 / 打字机 | `F8` / `F9` |
 | 行内代码 | ``Ctrl+Shift+` `` | 全屏 | `F11` |
 | 超链接 | `Ctrl+K` | 查找 / 替换 | `Ctrl+F` / `Ctrl+H` |
@@ -56,6 +56,7 @@
 | 关闭标签 | `Ctrl+W` | 全部保存 | `Ctrl+Alt+S` |
 | 重新打开关闭的标签 | `Ctrl+Shift+T` | 跳到第 N 个 / 最后一个标签 | `Alt+1…8` / `Alt+9` |
 | 下一个 / 上一个标签 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 移动标签 | `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp` |
+| 键盘快捷键列表 | `F1` | | |
 
 ## 从源码构建
 
