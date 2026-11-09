@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-09
+
 实现规格 [003-tables-sidebar-favorites](specs/003-tables-sidebar-favorites/spec.md)。
 
 ### 新增
