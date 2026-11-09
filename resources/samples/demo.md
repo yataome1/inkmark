@@ -66,9 +66,9 @@ graph LR
 
 ## 脚注
 
-Inkmark 使用 Vditor 作为编辑内核[^1]。
+Inkmark 使用 CodeMirror 作为编辑内核[^1]。
 
-[^1]: https://github.com/Vanessa219/vditor
+[^1]: https://codemirror.net/
 
 ---
 

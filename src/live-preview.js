@@ -9,6 +9,12 @@
 
   const refresh = StateEffect.define(); // 输入法组合结束、拖选结束、主题变化后强制重算
   let dragging = false;
+  let jump = null; // 最近一次大纲/目录跳转：其上方的图表异步渲染完成后要重新定位
+
+  function jumpTo(view, pos) {
+    jump = { pos, until: Date.now() + 3000 };
+    view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start' }) });
+  }
 
   // ---------------------------------------------------------------- 语法扩展
 
@@ -238,6 +244,7 @@
           el.classList.remove('im-error');
           svgDone.set(this.key, { svg, height: el.offsetHeight });
           view.requestMeasure();
+          if (jump && Date.now() < jump.until) view.dispatch({ effects: EditorView.scrollIntoView(jump.pos, { y: 'start' }) });
         },
         (err) => {
           if (el.dataset.source !== this.source) return;
@@ -294,7 +301,7 @@
         a.style.paddingLeft = `${(h.level - 1) * 20}px`;
         a.addEventListener('mousedown', (e) => {
           e.preventDefault();
-          view.dispatch({ effects: EditorView.scrollIntoView(h.from, { y: 'start' }) });
+          jumpTo(view, h.from);
         });
         el.append(a);
       }
@@ -486,6 +493,7 @@
     const { doc, selection } = state;
     const out = [];
     const theme = mermaidTheme();
+    let headings = null;
 
     const showBlock = (node, kind, source, caretOffset) => {
       const from = doc.lineAt(node.from).from;
@@ -525,7 +533,7 @@
             out.push(Decoration.replace({ widget: new TableWidget(doc.sliceString(from, to), model), block: true }).range(from, to));
           }
         } else if (n.name === 'Paragraph' && /^\[toc\]$/i.test(doc.sliceString(n.from, n.to)) && !touches(selection, n.from, n.to)) {
-          out.push(Decoration.replace({ widget: new TocWidget(headingsOf(state, tree)), block: true }).range(n.from, n.to));
+          out.push(Decoration.replace({ widget: new TocWidget((headings ??= headingsOf(state, tree))), block: true }).range(n.from, n.to));
         }
         return false;
       },
@@ -834,6 +842,7 @@
     syntax,
     extension,
     refresh,
+    jumpTo,
     isHidden,
     isDragging: () => dragging,
     setDragging(value) {

@@ -37,10 +37,10 @@
 - [x] T623 [US5] 导出：`export.js` 改用 markdown-it + `render.js` + `test/markdown-html.test.js`；HTML 与 PDF 对比 0.2.1
 
 ## 阶段 6：验证与发布
-- [ ] T624 NFR-601 性能实测（长文档与约 10000 行文档）；NFR-604 启动时间与内存
-- [ ] T625 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
-- [ ] T626 按 spec 验收场景逐条验证 + 002 清单回归，记录于 `checklist.md`；release 构建确认安装包 ≤ 3.55MB、免安装版 ≤ 15MB
-- [ ] T627 README（特性、致谢）、CHANGELOG、版本 0.3.0
+- [x] T624 NFR-601 性能实测（长文档与约 10000 行文档）；NFR-604 启动时间与内存
+- [x] T625 `npm run lint`、`npm test`、`cargo fmt --check`、`cargo clippy`、`cargo test`
+- [x] T626 按 spec 验收场景逐条验证 + 002 清单回归，记录于 `checklist.md`；release 构建确认安装包 ≤ 3.55MB、免安装版 ≤ 15MB
+- [x] T627 README（特性、致谢）、CHANGELOG、版本 0.3.0
 
 ## 依赖
 阶段 1 → 阶段 2 → 阶段 3 → 阶段 4、5（可并行）→ 阶段 6。T608 先于 T609–T614；T604 先于 T610–T612、T623。

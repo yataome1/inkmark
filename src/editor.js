@@ -256,7 +256,7 @@
       /** line 为 0 起始行号 */
       scrollToLine(line) {
         const { from } = view.state.doc.line(Math.min(line + 1, view.state.doc.lines));
-        view.dispatch({ effects: EditorView.scrollIntoView(from, { y: 'start' }) });
+        LivePreview.jumpTo(view, from);
       },
       focus: () => view.focus(),
     };

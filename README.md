@@ -22,7 +22,7 @@
 - **主题**：浅色 / 深色 / 跟随系统
 - **图片**：粘贴或拖入图片自动保存到文档旁的 `assets/` 目录
 - **查找替换**、**导出 HTML / PDF**、最近文件、`.md` 文件关联、`Ctrl+单击` 打开链接
-- **不丢数据**：未保存提示、原子写入
+- **不丢数据**：未保存提示、原子写入；打开再保存不改动文件的任何字节，撤销即时且只影响改动处
 
 ## 安装
 
@@ -68,9 +68,9 @@ npm run dist     # 构建安装包与免安装版
 ├── .github/                 CI 工作流、Issue / PR 模板
 ├── .specify/                SDD：项目宪章与规格模板
 ├── specs/                   SDD：每个特性的 spec / plan / research / tasks / checklist
-├── scripts/                 构建脚本（复制所需的 Vditor 资源）
+├── scripts/                 构建脚本（生成 src/vendor 中的第三方资源）
 ├── resources/samples/       随应用分发的示例文档
-├── src/                     前端：界面与编辑器（Vditor），platform.js 为唯一的系统接口
+├── src/                     前端：界面与编辑器（CodeMirror 6），platform.js 为唯一的系统接口
 ├── src-tauri/               后端（Rust）：窗口、菜单、文件、设置、导出 PDF；权限配置与图标
 ├── test/                    前端单元测试（node --test）
 ├── AGENTS.md                全局开发约束（人类与 AI 助手通用）
@@ -83,7 +83,8 @@ npm run dist     # 构建安装包与免安装版
 
 ## 致谢
 
-- [Vditor](https://github.com/Vanessa219/vditor)（MIT）—— 编辑内核
+- [CodeMirror 6](https://codemirror.net/)（MIT）—— 编辑内核
+- [markdown-it](https://github.com/markdown-it/markdown-it)（MIT）、[KaTeX](https://katex.org/)（MIT）、[Mermaid](https://mermaid.js.org/)（MIT）、[highlight.js](https://highlightjs.org/)（BSD-3-Clause）—— 导出与渲染
 - [Tauri](https://tauri.app/)（MIT / Apache-2.0）—— 桌面运行时
 - 设计灵感来自 [Typora](https://typora.io)。Inkmark 是独立的开源项目，与 Typora 无关。
 

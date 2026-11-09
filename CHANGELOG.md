@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-09
+
+实现规格 [006-codemirror-core](specs/006-codemirror-core/spec.md)（选型依据见 [005](specs/005-editor-core/research.md)）。
+
+### 变更
+
+- 编辑内核由 Vditor 改为 CodeMirror 6，编辑的就是文件原文
+- 打开再保存不再改写文件（`[TOC]`、`[x]`、表格空格、空行、转义都保持原样），保留 CRLF 换行与 BOM
+- 编辑表格时不再自动重排表格源码的空格
+- 撤销/重做只影响改动处，长文档中也是毫秒级；切换文件时清空撤销历史
+- 点击或用方向键移入、移出图表、公式、代码块、图片时内容不再跳动
+- 查找覆盖全文；全部替换与查找一致，不区分大小写
+- 导出改用 markdown-it
+
+### 移除
+
+- flowchart.js 流程图（`flowchart` 代码块按普通代码块显示）
+- yul、solidity、abap、hlsl、gdscript 的代码高亮
+
 ## [0.2.1] - 2026-11-06
 
 实现规格 [004-table-code-pipe](specs/004-table-code-pipe/spec.md)。
