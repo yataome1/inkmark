@@ -81,6 +81,8 @@
     };
     const closeMenu = () => close?.();
 
+    menu.style.left = '0';
+    menu.style.top = '0';
     document.body.append(menu);
     const { width, height } = menu.getBoundingClientRect();
     menu.style.left = `${Math.max(0, Math.min(x, innerWidth - width))}px`;
