@@ -424,6 +424,7 @@ body {
 }
 #find-count {
   min-width: 40px;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 12px;
   text-align: center;

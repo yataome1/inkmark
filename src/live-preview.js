@@ -1,11 +1,24 @@
 // 即时渲染（FR-604、FR-605）：只用装饰改变显示，文档文本不变。
 // 行内元素由 ViewPlugin 按可视区域计算；块级小部件必须由 StateField 提供。
-/* global CM, Render, Anchor */
+/* global CM, Render, Anchor, Finder */
 'use strict';
 
 (function (root) {
-  const { Decoration, EditorSelection, EditorView, Prec, StateEffect, StateField, ViewPlugin, WidgetType, keymap, syntaxTree, undo, redo } =
-    CM;
+  const {
+    ensureSyntaxTree,
+    Decoration,
+    EditorSelection,
+    EditorView,
+    Prec,
+    StateEffect,
+    StateField,
+    ViewPlugin,
+    WidgetType,
+    keymap,
+    syntaxTree,
+    undo,
+    redo,
+  } = CM;
 
   const refresh = StateEffect.define(); // 输入法组合结束、拖选结束、主题变化后强制重算
   let dragging = false;
@@ -91,7 +104,26 @@
     ],
   };
 
+  /** 第一个结束位置不早于 pos 的匹配下标（matches 按位置排序且互不重叠） */
+  function firstMatchAt(matches, pos) {
+    let lo = 0;
+    let hi = matches.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (matches[mid].to < pos) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+
   const touches = (sel, from, to) => sel.ranges.some((r) => r.from <= to && r.to >= from);
+
+  /** 表格区间内的匹配 */
+  function matchesIn(matches, from, to) {
+    const out = [];
+    for (let i = firstMatchAt(matches, from); i < matches.length && matches[i].from <= to; i++) out.push(matches[i]);
+    return out;
+  }
 
   // ---------------------------------------------------------------- 小部件
 
@@ -354,6 +386,37 @@
     return { rows, aligns };
   }
 
+  /** 在排版后的单元格文本节点上加查找高亮；marks 为相对可见文字的偏移，公式不参与计数（FR-610） */
+  function applyCellMarks(td, marks) {
+    const walker = document.createTreeWalker(td, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentElement.closest('.katex') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    const nodes = [];
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
+    let offset = 0;
+    for (const node of nodes) {
+      const start = offset;
+      offset += node.length;
+      // 从后往前切分，前面的下标不受影响
+      for (const m of [...marks].reverse()) {
+        const from = Math.max(m.from - start, 0);
+        const to = Math.min(m.to - start, node.length);
+        if (from >= to) continue;
+        const range = document.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, to);
+        const span = document.createElement('span');
+        span.className = m.current ? 'im-find-current' : 'im-find';
+        range.surroundContents(span);
+      }
+    }
+  }
+
+  function paintCell(td, cell) {
+    td.innerHTML = Render.renderInline(cell.text);
+    if (cell.marks?.length) applyCellMarks(td, cell.marks);
+  }
+
   const escapeCell = (text) => text.replace(/\r?\n/g, ' ').replace(/(^|[^\\])\|/g, '$1\\|');
 
   class TableWidget extends WidgetType {
@@ -363,7 +426,10 @@
       this.model = model;
     }
     eq(o) {
-      return o.source === this.source;
+      return o.source === this.source && o.marksKey === this.marksKey;
+    }
+    get marksKey() {
+      return JSON.stringify(this.model.rows.map((cells) => cells.map((c) => c.marks)));
     }
     get estimatedHeight() {
       return this.model.rows.length * 38 + 16;
@@ -375,7 +441,7 @@
       if (document.activeElement === td) {
         if (td.textContent !== cell.text) td.textContent = cell.text;
       } else {
-        td.innerHTML = Render.renderInline(cell.text);
+        paintCell(td, cell);
       }
     }
     fill(dom, view) {
@@ -391,7 +457,7 @@
           tr.append(td);
           if (cells[c]) {
             td.contentEditable = 'plaintext-only';
-            td.innerHTML = Render.renderInline(cells[c].text);
+            paintCell(td, cells[c]);
           }
         }
       });
@@ -425,7 +491,7 @@
       });
       dom.addEventListener('focusout', (e) => {
         const td = e.target.closest('td,th');
-        if (td && cellOf(td)) td.innerHTML = Render.renderInline(cellOf(td).text);
+        if (td && cellOf(td)) paintCell(td, cellOf(td));
       });
       dom.addEventListener('input', (e) => {
         if (!e.isComposing) commit(e.target.closest('td,th'));
@@ -454,7 +520,8 @@
       this.cellElements(dom).forEach((tds, r) =>
         tds.forEach((td, c) => {
           const cell = this.model.rows[r][c];
-          if (cell && cell.text !== old.model.rows[r][c]?.text) this.showCell(td, cell);
+          const prev = old.model.rows[r][c];
+          if (cell && (cell.text !== prev?.text || JSON.stringify(cell.marks) !== JSON.stringify(prev?.marks))) this.showCell(td, cell);
         }),
       );
       return true;
@@ -490,7 +557,9 @@
 
   function buildBlocks(state) {
     const tree = syntaxTree(state);
-    const { doc, selection } = state;
+    const { doc } = state;
+    const { selection } = state;
+    const matches = Finder.ranges(state);
     const out = [];
     const theme = mermaidTheme();
     let headings = null;
@@ -529,6 +598,17 @@
           const from = doc.lineAt(n.from).from;
           const to = doc.lineAt(n.to).to;
           const model = tableModel(state, n.node);
+          const cells = model.rows.flat();
+          const found = matchesIn(matches, from, to);
+          for (const c of cells) {
+            const base = c.from === undefined ? 0 : Finder.toVisible(state, c.from);
+            c.marks =
+              c.from === undefined
+                ? []
+                : found
+                    .filter((m) => c.from <= m.from && m.to <= c.to)
+                    .map((m) => ({ from: m.vFrom - base, to: m.vTo - base, current: !!m.current }));
+          }
           if (model.rows.length && model.rows[0].length) {
             out.push(Decoration.replace({ widget: new TableWidget(doc.sliceString(from, to), model), block: true }).range(from, to));
           }
@@ -546,7 +626,8 @@
     update(deco, tr) {
       const refreshed = tr.effects.some((e) => e.is(refresh));
       if (tr.isUserEvent('input.type.compose') || (dragging && !tr.docChanged && !refreshed)) return deco.map(tr.changes);
-      if (tr.docChanged || refreshed || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)) return buildBlocks(tr.state);
+      if (tr.docChanged || refreshed || tr.selection || Finder.changed(tr) || syntaxTree(tr.state) !== syntaxTree(tr.startState))
+        return buildBlocks(tr.state);
       return deco;
     },
     provide: (f) => EditorView.decorations.from(f),
@@ -588,7 +669,8 @@
 
   function buildInline(view, imageUrl) {
     const { state } = view;
-    const { doc, selection: sel } = state;
+    const { doc } = state;
+    const { selection: sel } = state;
     const out = [];
     const hide = (from, to) => {
       if (from < to && doc.lineAt(from).number === doc.lineAt(to).number) out.push(HIDE.range(from, to));
@@ -703,8 +785,13 @@
       const node = n.node;
       const text = doc.sliceString(n.from, n.to);
       if (/^\[\^[^\]]+\]$/.test(text)) {
-        if (active) mark('im-marker', n.from, n.to);
-        else replace(new TextWidget('im-footnote', text.slice(2, -1)), n.from, n.to);
+        if (active) {
+          mark('im-marker', n.from, n.to);
+        } else {
+          hide(n.from, n.from + 2);
+          mark('im-footnote', n.from + 2, n.to - 1);
+          hide(n.to - 1, n.to);
+        }
         return false;
       }
       const m = node.getChildren('LinkMark');
@@ -798,7 +885,7 @@
           this.decorations = buildInline(view, imageUrl);
         }
         update(u) {
-          const refreshed = u.transactions.some((t) => t.effects.some((e) => e.is(refresh)));
+          const refreshed = u.transactions.some((t) => Finder.changed(t) || t.effects.some((e) => e.is(refresh)));
           if (u.view.composing || (dragging && !u.docChanged && !refreshed)) {
             this.decorations = this.decorations.map(u.changes);
             return;
@@ -829,6 +916,154 @@
     ];
   }
 
+  /** 渲染后的可见文字及其与原文的位置映射（FR-610）；图形与单元格边界放 \0，避免跨界匹配 */
+  function visibleText(state) {
+    const { doc } = state;
+    const tree = ensureSyntaxTree(state, doc.length, 2000) || syntaxTree(state);
+    const hidden = [];
+    const hide = (from, to, barrier = false) => {
+      if (from < to) hidden.push({ from, to, barrier });
+    };
+    const hideLine = (pos) => {
+      const l = doc.lineAt(pos);
+      hide(l.from, Math.min(l.to + 1, doc.length));
+    };
+    const hideWithSpace = (from, to) => hide(from, doc.sliceString(to, to + 1) === ' ' ? to + 1 : to);
+    const wholeLines = (from, to) => hide(doc.lineAt(from).from, doc.lineAt(to).to, true);
+
+    tree.iterate({
+      enter(n) {
+        const { name } = n;
+        if (name === 'HeaderMark') {
+          hideWithSpace(n.from, n.to);
+        } else if (['EmphasisMark', 'StrikethroughMark', 'HighlightMark'].includes(name)) {
+          hide(n.from, n.to);
+        } else if (name === 'InlineCode') {
+          const first = n.node.firstChild;
+          const last = n.node.lastChild;
+          hide(first.from, first.to);
+          if (last !== first) hide(last.from, last.to);
+        } else if (name === 'Escape') {
+          hide(n.from, n.from + 1);
+        } else if (name === 'Link') {
+          const text = doc.sliceString(n.from, n.to);
+          if (/^\[\^[^\]]+\]$/.test(text)) {
+            hide(n.from, n.from + 2);
+            hide(n.to - 1, n.to);
+            return false;
+          }
+          const m = n.node.getChildren('LinkMark');
+          if (m.length >= 2) {
+            hide(m[0].from, m[0].to);
+            hide(m[1].from, n.to);
+          }
+        } else if (name === 'Image' || name === 'InlineMath') {
+          hide(n.from, n.to, true);
+          return false;
+        } else if (name === 'MathBlock' || name === 'HorizontalRule') {
+          wholeLines(n.from, n.to);
+          return false;
+        } else if (name === 'FencedCode') {
+          const node = n.node;
+          const info = node.getChild('CodeInfo');
+          const lang = info ? doc.sliceString(info.from, info.to).trim().toLowerCase() : '';
+          if (lang === 'mermaid' && node.getChild('CodeText')) {
+            wholeLines(n.from, n.to);
+          } else {
+            hideLine(n.from);
+            const closing = node.lastChild;
+            if (closing.name === 'CodeMark' && closing.from !== node.firstChild.from) hideLine(closing.from);
+          }
+          return false;
+        } else if (name === 'QuoteMark') {
+          hideWithSpace(n.from, n.to);
+        } else if (name === 'ListMark') {
+          const isTask = n.node.nextSibling?.name === 'Task';
+          if (isTask || /[-*+]/.test(doc.sliceString(n.from, n.to))) hideWithSpace(n.from, n.to);
+        } else if (name === 'TaskMarker') {
+          hideWithSpace(n.from, n.to);
+        } else if (name === 'HTMLTag') {
+          const text = doc.sliceString(n.from, n.to);
+          if (/^<br\s*\/?>$/i.test(text)) {
+            hide(n.from, n.to, true);
+          } else {
+            const open = /^<([a-z]+)>$/i.exec(text);
+            if (open && INLINE_TAGS.has(open[1].toLowerCase())) {
+              const close = `</${open[1]}>`.toLowerCase();
+              for (let c = n.node.nextSibling; c; c = c.nextSibling) {
+                if (c.name === 'HTMLTag' && doc.sliceString(c.from, c.to).toLowerCase() === close) {
+                  hide(n.from, n.to);
+                  hide(c.from, c.to);
+                  break;
+                }
+              }
+            }
+          }
+        } else if (name === 'Paragraph' && /^\[toc\]$/i.test(doc.sliceString(n.from, n.to))) {
+          hide(n.from, n.to, true);
+          return false;
+        } else if (name === 'Table') {
+          // 只有单元格内容可见；竖线、分隔行、补齐空格都不算
+          const end = doc.lineAt(n.to).to;
+          let pos = doc.lineAt(n.from).from;
+          for (const c of tableModel(state, n.node).rows.flat()) {
+            if (c.from === undefined) continue;
+            hide(pos, c.from, true);
+            pos = c.to;
+            for (const m of c.text.matchAll(/\\\|/g)) hide(c.from + m.index, c.from + m.index + 1);
+          }
+          hide(pos, end, true);
+        }
+        return undefined;
+      },
+    });
+
+    hidden.sort((a, b) => a.from - b.from || a.to - b.to);
+    const segments = [];
+    let text = '';
+    let pos = 0;
+    let barrier = false;
+    const flush = (to) => {
+      if (to <= pos) return;
+      segments.push({ from: pos, to, vis: text.length });
+      text += doc.sliceString(pos, to);
+    };
+    for (const h of hidden) {
+      if (h.from > pos) {
+        flush(h.from);
+        barrier = false;
+      }
+      if (h.barrier && !barrier) {
+        text += '\0';
+        barrier = true;
+      }
+      pos = Math.max(pos, h.to);
+    }
+    flush(doc.length);
+
+    const segmentAt = (test) => {
+      let lo = 0;
+      let hi = segments.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (test(segments[mid])) hi = mid;
+        else lo = mid + 1;
+      }
+      return segments[Math.min(lo, segments.length - 1)];
+    };
+    return {
+      text,
+      toSource(v) {
+        const s = segmentAt((seg) => seg.vis + (seg.to - seg.from) > v);
+        return s.from + (v - s.vis);
+      },
+      toVisible(p) {
+        const s = segmentAt((seg) => seg.to > p);
+        return s.vis + Math.max(p - s.from, 0);
+      },
+    };
+  }
+
   /** pos 是否落在被替换显示的块上（含两端，看不到） */
   function isHidden(state, pos) {
     let hidden = false;
@@ -842,6 +1077,7 @@
     syntax,
     extension,
     refresh,
+    visibleText,
     jumpTo,
     isHidden,
     isDragging: () => dragging,

@@ -67,6 +67,7 @@ function onChange() {
   refreshDirty();
   refreshPanels();
   findStale = true;
+  refreshFindSoon();
 }
 
 // 图片只在显示时转换为 asset 地址，不改动 Markdown 文本（FR-011）
@@ -177,6 +178,7 @@ function updateStatus() {
 
 function toggleSourceMode() {
   editor.toggleSource();
+  refreshFind();
   updateStatus();
   editor.focus();
 }
@@ -276,6 +278,18 @@ const findInput = $('#find-input');
 const replaceInput = $('#replace-input');
 
 let findStale = false; // 查找后文档被修改，匹配位置需要重新计算
+let keepFindNotice = false;
+const findRendered = () => !editor.isSource();
+
+function refreshFind() {
+  findStale = false;
+  if (keepFindNotice) {
+    keepFindNotice = false; // 全部替换后保留“已替换”提示
+    return;
+  }
+  if (!findbar.hidden) showFindResult(Finder.refresh(editor.view, findInput.value, findRendered()));
+}
+const refreshFindSoon = debounce(refreshFind, 150);
 
 function showFindResult({ active, total }) {
   $('#find-count').textContent = !findInput.value ? '' : total ? `${active}/${total}` : '无结果';
@@ -283,7 +297,7 @@ function showFindResult({ active, total }) {
 
 function runFind() {
   findStale = false;
-  showFindResult(Finder.search(editor.view, findInput.value));
+  showFindResult(Finder.search(editor.view, findInput.value, findRendered()));
 }
 
 function showFindbar(withReplace) {
@@ -304,8 +318,8 @@ function hideFindbar() {
 }
 
 function findStep(forward) {
-  if (findStale) runFind();
-  else showFindResult(Finder.step(editor.view, forward));
+  if (findStale) refreshFind();
+  showFindResult(Finder.step(editor.view, forward, findRendered()));
 }
 
 findInput.addEventListener('input', runFind);
@@ -317,8 +331,9 @@ $('#find-prev').addEventListener('click', () => findStep(false));
 $('#find-close').addEventListener('click', hideFindbar);
 $('#replace-all').addEventListener('click', () => {
   if (!findInput.value) return;
-  const n = Finder.replaceAll(editor.view, findInput.value, replaceInput.value);
-  $('#find-count').textContent = `已替换 ${n} 处`;
+  const { replaced, skipped } = Finder.replaceAll(editor.view, findInput.value, replaceInput.value, findRendered());
+  keepFindNotice = replaced > 0;
+  $('#find-count').textContent = `已替换 ${replaced} 处${skipped ? `，跳过 ${skipped} 处跨格式匹配` : ''}`;
 });
 findbar.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideFindbar();
