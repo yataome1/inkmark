@@ -88,6 +88,31 @@
   let queue = Promise.resolve(); // mermaid.render 不可并发
   let renderId = 0;
   let initializedTheme;
+  // FR-705：同一色系，相邻扇区深浅交替
+  const MERMAID_PIE = {
+    default: '#a5b4fc #e0e7ff #c4b5fd #bfdbfe #d8b4fe #ede9fe #93c5fd #e9d5ff #c7d2fe #f5d0fe #a5c8fd #ddd6fe',
+    dark: '#4c4fa8 #2f3167 #624a9c #2f4a80 #6c4292 #3d2f73 #375594 #54357f #414a9a #723a6e #2a5e86 #5a3f8f',
+  };
+  const MERMAID_COLORS = {
+    default: {
+      primaryColor: '#eeeefd',
+      primaryBorderColor: '#d2d2f4',
+      primaryTextColor: '#333333',
+      lineColor: '#6366f1',
+      clusterBorder: '#d2d2f4',
+      edgeLabelBackground: '#ffffff',
+    },
+    dark: {
+      darkMode: true,
+      background: '#1e1f22',
+      primaryColor: '#2c2e45',
+      primaryBorderColor: '#45486b',
+      primaryTextColor: '#d4d6da',
+      lineColor: '#8b8ef5',
+      clusterBorder: '#45486b',
+      edgeLabelBackground: '#1e1f22',
+    },
+  };
 
   /** 渲染 Mermaid 为 SVG 字符串，语法错误时 reject；同一主题下相同源码只渲染一次 */
   function renderMermaid(source, theme) {
@@ -98,7 +123,25 @@
       .then(loadMermaid)
       .then(async () => {
         if (initializedTheme !== theme) {
-          mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme });
+          // FR-701、FR-702：随包版本默认 elk 布局，会忽略 curve，须指定 dagre
+          mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: 'strict',
+            theme: 'base',
+            themeCSS: 'rect.actor { filter: none; }', // FR-704：时序图阴影写在 SVG 属性上，dropShadow 变量管不到
+            layout: 'dagre',
+            flowchart: { curve: 'basis', nodeSpacing: 60, rankSpacing: 60, padding: 16 },
+            themeVariables: {
+              ...MERMAID_COLORS[theme],
+              ...Object.fromEntries(MERMAID_PIE[theme].split(' ').map((color, i) => [`pie${i + 1}`, color])),
+              pieStrokeColor: MERMAID_COLORS[theme].primaryBorderColor,
+              pieOuterStrokeColor: MERMAID_COLORS[theme].primaryBorderColor,
+              clusterBkg: 'transparent',
+              useGradient: false,
+              dropShadow: 'none',
+              nodeShadow: false,
+            },
+          });
           initializedTheme = theme;
         }
         return (await mermaid.render(`im-mermaid-${renderId++}`, source)).svg;
