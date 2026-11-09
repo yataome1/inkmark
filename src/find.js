@@ -1,68 +1,75 @@
-// 页内查找（FR-013）：用 CSS Custom Highlight API 高亮编辑区中可见文本的匹配项，不修改 DOM。
-// WebView2 在 Tauri 中没有页内查找接口，见 specs/002-tauri-migration/plan.md。
+// 查找替换（FR-013）：在文档原文中匹配（不区分大小写），长文档中不可见的部分同样能找到。
+/* global CM */
 'use strict';
 
 (function (root) {
-  const all = new Highlight();
-  const current = new Highlight();
-  CSS.highlights.set('im-find', all);
-  CSS.highlights.set('im-find-current', current);
+  const { Decoration, EditorView, SearchCursor, StateEffect, StateField, isolateHistory } = CM;
 
-  let ranges = [];
+  const setMarks = StateEffect.define();
+  const ALL = Decoration.mark({ class: 'im-find' });
+  const CURRENT = Decoration.mark({ class: 'im-find-current' });
+
+  const extension = StateField.define({
+    create: () => Decoration.none,
+    update(deco, tr) {
+      let next = deco.map(tr.changes);
+      for (const e of tr.effects) if (e.is(setMarks)) next = e.value;
+      return next;
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  });
+
+  let matches = [];
   let active = -1;
 
-  function clear() {
-    all.clear();
-    current.clear();
-    ranges = [];
-    active = -1;
-  }
+  const result = () => ({ active: active + 1, total: matches.length });
+  const marks = () => Decoration.set(matches.map((m, i) => (i === active ? CURRENT : ALL).range(m.from, m.to)));
 
-  // IR 模式中隐藏的 Markdown 标记、代码块源码等不参与匹配
-  const visible = (node) => node.parentElement && node.parentElement.checkVisibility();
-
-  function result() {
-    return { active: active + 1, total: ranges.length };
-  }
-
-  function show() {
-    current.clear();
-    if (active < 0) return;
-    const r = ranges[active];
-    current.add(r);
-    r.startContainer.parentElement.scrollIntoView({ block: 'center' });
-  }
-
-  /** 在 container 中查找 text（不区分大小写），定位到第一个匹配 */
-  function search(container, text) {
-    clear();
-    if (!text) return result();
-    const q = text.toLowerCase();
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (visible(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
-    });
-    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      const s = n.data.toLowerCase();
-      for (let i = s.indexOf(q); i !== -1; i = s.indexOf(q, i + q.length)) {
-        const r = new Range();
-        r.setStart(n, i);
-        r.setEnd(n, i + text.length);
-        ranges.push(r);
-        all.add(r);
-      }
+  function show(view) {
+    const spec = { effects: [setMarks.of(marks())] };
+    if (active >= 0) {
+      const m = matches[active];
+      spec.selection = { anchor: m.from, head: m.to };
+      spec.effects.push(EditorView.scrollIntoView(m.from, { y: 'center' }));
     }
-    active = ranges.length ? 0 : -1;
-    show();
+    view.dispatch(spec);
+  }
+
+  function clear(view) {
+    matches = [];
+    active = -1;
+    view.dispatch({ effects: setMarks.of(Decoration.none) });
+  }
+
+  /** 查找 text，定位到第一个匹配 */
+  function search(view, text) {
+    matches = [];
+    if (text) {
+      const cursor = new SearchCursor(view.state.doc, text, 0, view.state.doc.length, (s) => s.toLowerCase());
+      while (!cursor.next().done) matches.push({ from: cursor.value.from, to: cursor.value.to });
+    }
+    active = matches.length ? 0 : -1;
+    show(view);
     return result();
   }
 
   /** 跳到下一个（forward）或上一个匹配 */
-  function step(forward) {
-    if (!ranges.length) return result();
-    active = (active + (forward ? 1 : -1) + ranges.length) % ranges.length;
-    show();
+  function step(view, forward) {
+    if (matches.length) {
+      active = (active + (forward ? 1 : -1) + matches.length) % matches.length;
+      show(view);
+    }
     return result();
   }
 
-  root.Finder = { search, step, clear };
+  /** 全部替换为一个事务，一次撤销；返回替换数量 */
+  function replaceAll(view, text, replacement) {
+    search(view, text);
+    const n = matches.length;
+    if (n) view.dispatch({ changes: matches.map((m) => ({ ...m, insert: replacement })), annotations: isolateHistory.of('full') });
+    clear(view);
+    return n;
+  }
+
+  root.Finder = { extension, search, step, clear, replaceAll };
 })(this);

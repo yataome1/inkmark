@@ -1,12 +1,14 @@
 // 即时渲染（FR-604、FR-605）：只用装饰改变显示，文档文本不变。
 // 行内元素由 ViewPlugin 按可视区域计算；块级小部件必须由 StateField 提供。
-/* global CM, Render */
+/* global CM, Render, Anchor */
 'use strict';
 
 (function (root) {
-  const { Decoration, EditorView, StateEffect, StateField, ViewPlugin, WidgetType, syntaxTree, undo, redo } = CM;
+  const { Decoration, EditorSelection, EditorView, Prec, StateEffect, StateField, ViewPlugin, WidgetType, keymap, syntaxTree, undo, redo } =
+    CM;
 
-  const refresh = StateEffect.define(); // 输入法组合结束、主题变化后强制重算
+  const refresh = StateEffect.define(); // 输入法组合结束、拖选结束、主题变化后强制重算
+  let dragging = false;
 
   // ---------------------------------------------------------------- 语法扩展
 
@@ -87,6 +89,8 @@
 
   // ---------------------------------------------------------------- 小部件
 
+  const imageSizes = new Map();
+
   class ImageWidget extends WidgetType {
     constructor(src, alt, imageUrl) {
       super();
@@ -101,6 +105,13 @@
       const img = document.createElement('img');
       img.className = 'im-image';
       img.alt = this.alt;
+      img.dataset.source = this.src;
+      const size = imageSizes.get(this.src);
+      if (size) {
+        img.width = size.width; // 激活/未激活切换时占位不变，不跳动（FR-606）
+        img.style.aspectRatio = `${size.width} / ${size.height}`;
+      }
+      img.onload = () => imageSizes.set(this.src, { width: img.naturalWidth, height: img.naturalHeight });
       this.imageUrl(this.src).then(
         (url) => {
           if (url) img.src = url;
@@ -127,6 +138,7 @@
     toDOM() {
       const el = document.createElement('span');
       el.className = 'im-math';
+      el.dataset.source = this.source;
       Render.renderMath(el, this.source, false);
       return el;
     }
@@ -380,8 +392,12 @@
       dom.view = view;
     }
     toDOM(view) {
+      // 外层用内边距留白：CodeMirror 不计入小部件的外边距，位置映射会错位
+      const wrap = document.createElement('div');
+      wrap.className = 'im-table-wrap';
       const dom = document.createElement('table');
       dom.className = 'im-table';
+      wrap.append(dom);
       this.fill(dom, view);
       const cellOf = (td) => dom.widget.model.rows[td.dataset.r][td.dataset.c];
       const commit = (td) => {
@@ -417,9 +433,10 @@
           else redo(view);
         }
       });
-      return dom;
+      return wrap;
     }
-    updateDOM(dom, view) {
+    updateDOM(wrap, view) {
+      const dom = wrap.firstChild;
       const same = dom.rows.length === this.model.rows.length && dom.rows[0]?.cells.length === this.model.rows[0].length;
       if (!same) {
         this.fill(dom, view);
@@ -461,6 +478,9 @@
     return out;
   }
 
+  // 围栏行折叠为零高度：跨换行的替换装饰会让鼠标点击定位到错误的行
+  const HIDDEN_LINE = Decoration.line({ class: 'im-fence-hidden' });
+
   function buildBlocks(state) {
     const tree = syntaxTree(state);
     const { doc, selection } = state;
@@ -491,11 +511,10 @@
           if (lang === 'mermaid' && code) {
             showBlock(n, 'mermaid', doc.sliceString(code.from, code.to), first.length + 1);
           } else if (code && !touches(selection, n.from, n.to)) {
-            out.push(Decoration.replace({}).range(first.from, first.to + 1));
+            out.push(HIDDEN_LINE.range(first.from));
             const closing = node.lastChild;
             if (closing.name === 'CodeMark' && closing.from !== node.firstChild.from) {
-              const last = doc.lineAt(closing.from);
-              out.push(Decoration.replace({}).range(last.from - 1, last.to));
+              out.push(HIDDEN_LINE.range(doc.lineAt(closing.from).from));
             }
           }
         } else if (n.name === 'Table') {
@@ -517,8 +536,8 @@
   const blocks = StateField.define({
     create: buildBlocks,
     update(deco, tr) {
-      if (tr.isUserEvent('input.type.compose')) return deco.map(tr.changes);
       const refreshed = tr.effects.some((e) => e.is(refresh));
+      if (tr.isUserEvent('input.type.compose') || (dragging && !tr.docChanged && !refreshed)) return deco.map(tr.changes);
       if (tr.docChanged || refreshed || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)) return buildBlocks(tr.state);
       return deco;
     },
@@ -745,6 +764,24 @@
     return Decoration.set(out, true);
   }
 
+  /** 上下方向键进入被整块替换的图表/公式：垂直移动本会跨过它们（US4-3） */
+  function moveIntoBlock(forward) {
+    return (view) => {
+      const range = view.state.selection.main;
+      if (!range.empty) return false;
+      const dest = view.moveVertically(range, forward).head;
+      let target = null;
+      view.state.field(blocks).between(Math.min(range.head, dest), Math.max(range.head, dest), (from, to, deco) => {
+        if (from === to || !(deco.spec.widget instanceof BlockWidget) || range.head === from || range.head === to) return;
+        if (target === null || forward) target ??= forward ? from : to;
+        if (!forward) target = to;
+      });
+      if (target === null) return false;
+      view.dispatch({ selection: EditorSelection.cursor(target), scrollIntoView: true });
+      return true;
+    };
+  }
+
   /** @param {{ imageUrl: (src: string) => Promise<string|null> }} options */
   function extension({ imageUrl }) {
     const inline = ViewPlugin.fromClass(
@@ -753,11 +790,11 @@
           this.decorations = buildInline(view, imageUrl);
         }
         update(u) {
-          if (u.view.composing) {
+          const refreshed = u.transactions.some((t) => t.effects.some((e) => e.is(refresh)));
+          if (u.view.composing || (dragging && !u.docChanged && !refreshed)) {
             this.decorations = this.decorations.map(u.changes);
             return;
           }
-          const refreshed = u.transactions.some((t) => t.effects.some((e) => e.is(refresh)));
           if (u.docChanged || u.selectionSet || u.viewportChanged || refreshed || syntaxTree(u.state) !== syntaxTree(u.startState)) {
             this.decorations = buildInline(u.view, imageUrl);
           }
@@ -768,6 +805,13 @@
     return [
       blocks,
       inline,
+      Anchor.extension(),
+      Prec.high(
+        keymap.of([
+          { key: 'ArrowDown', run: moveIntoBlock(true) },
+          { key: 'ArrowUp', run: moveIntoBlock(false) },
+        ]),
+      ),
       EditorView.domEventHandlers({
         compositionend(_e, view) {
           setTimeout(() => view.dispatch({ effects: refresh.of(null) }));
@@ -777,5 +821,23 @@
     ];
   }
 
-  root.LivePreview = { syntax, extension, refresh };
+  /** pos 是否落在被替换显示的块上（含两端，看不到） */
+  function isHidden(state, pos) {
+    let hidden = false;
+    state.field(blocks).between(pos, pos, (from, to) => {
+      if (from < to) hidden = true;
+    });
+    return hidden;
+  }
+
+  root.LivePreview = {
+    syntax,
+    extension,
+    refresh,
+    isHidden,
+    isDragging: () => dragging,
+    setDragging(value) {
+      dragging = value;
+    },
+  };
 })(this);

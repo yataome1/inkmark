@@ -34,3 +34,8 @@ test('resolveImage: 网络地址原样，未保存文档的相对路径无法解
   assert.deepEqual(resolveImage('https://x/a.png', 'D:\\doc'), { url: 'https://x/a.png' });
   assert.equal(resolveImage('a.png', null), null);
 });
+
+test('Anchor.delta: 向上移动为负，四舍五入', () => {
+  assert.equal(require('../src/anchor').delta(300, 150.4), -150);
+  assert.equal(require('../src/anchor').delta(10, 10), 0);
+});

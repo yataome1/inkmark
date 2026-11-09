@@ -1,6 +1,6 @@
 // 公式、图表、代码高亮、图片地址：编辑器与导出共用（FR-604、FR-609）。
 // 依赖全局 katex、hljs；mermaid 体积大，首次用到时才加载。Node 中只提供纯函数供测试。
-/* global CM, katex, hljs, mermaid */
+/* global CM, MarkdownHtml, katex, hljs, mermaid */
 (function (root) {
   function renderMath(el, source, displayMode) {
     katex.render(source, el, { displayMode, throwOnError: false });
@@ -32,29 +32,44 @@
   }
 
   let inlineMarkdown;
-  function mathInlineRule(state, silent) {
-    const { src, pos, posMax } = state;
-    if (src[pos] !== '$' || /[\s\d$]/.test(src[pos + 1] || ' ')) return false;
-    for (let i = pos + 1; i < posMax; i++) {
-      if (src[i] === '\\') i++;
-      else if (src[i] === '$') {
-        if (/\s/.test(src[i - 1])) return false;
-        if (!silent) state.push('math_inline', 'math', 0).content = src.slice(pos + 1, i);
-        state.pos = i + 1;
-        return true;
-      }
-    }
-    return false;
-  }
 
   /** 表格单元格的排版显示：竖线转义先还原（GFM 在行内解析之前处理） */
   function renderInline(text) {
     if (!inlineMarkdown) {
       inlineMarkdown = new CM.MarkdownIt({ html: false, linkify: false }).use(CM.markdownItMark);
-      inlineMarkdown.inline.ruler.after('escape', 'math_inline', mathInlineRule);
+      inlineMarkdown.inline.ruler.after('escape', 'math_inline', MarkdownHtml.mathInlineRule);
       inlineMarkdown.renderer.rules.math_inline = (tokens, i) => katex.renderToString(tokens[i].content, { throwOnError: false });
     }
     return inlineMarkdown.renderInline(text.replace(/\\\|/g, '|'));
+  }
+
+  let documentRenderer;
+
+  /** 导出：完整文档 → 安全的 HTML（FR-609）；图表按浅色主题渲染，失败时保留源码 */
+  async function renderDocument(markdown) {
+    documentRenderer ??= MarkdownHtml.create({
+      MarkdownIt: CM.MarkdownIt,
+      footnote: CM.markdownItFootnote,
+      mark: CM.markdownItMark,
+      taskLists: CM.markdownItTaskLists,
+      renderMath: (source, displayMode) => katex.renderToString(source, { displayMode, throwOnError: false }),
+      highlight: highlightHtml,
+    });
+    const doc = new DOMParser().parseFromString(documentRenderer(markdown), 'text/html'); // 惰性解析，不加载、不执行
+    doc.querySelectorAll('script,iframe,object,embed,link,meta,base').forEach((el) => el.remove());
+    for (const el of doc.body.querySelectorAll('*')) {
+      for (const { name, value } of [...el.attributes]) {
+        if (/^on/i.test(name) || /^\s*javascript:/i.test(value)) el.removeAttribute(name);
+      }
+    }
+    for (const el of doc.querySelectorAll('.language-mermaid')) {
+      try {
+        el.innerHTML = await renderMermaid(el.textContent, 'default');
+      } catch {
+        // 语法错误：保留源码
+      }
+    }
+    return doc.body.innerHTML;
   }
 
   let mermaidReady;
@@ -113,7 +128,7 @@
     return { path: out.join('\\') };
   }
 
-  const api = { renderMath, renderInline, highlightHtml, htmlToRanges, renderMermaid, resolveImage };
+  const api = { renderMath, renderInline, renderDocument, highlightHtml, htmlToRanges, renderMermaid, resolveImage };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Render = api;
 })(this);

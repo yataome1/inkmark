@@ -36,6 +36,7 @@ src/
 ├── doc-format.js        新（纯函数）：拆分/还原 BOM 与换行符
 ├── render.js            新：KaTeX、Mermaid（队列 + 按源码缓存）、highlight.js、图片地址解析；编辑器与导出共用
 ├── live-preview.js      新：即时渲染装饰与小部件（标记显示/隐藏、块展开、表格、图片、公式、图表、TOC、任务列表）
+├── markdown-html.js     新：导出用 Markdown → HTML（依赖注入，可在 Node 中测试）
 ├── anchor.js            新：点击/键盘锚定（FR-606）
 ├── editor.js            新：创建 EditorView；读写文本、重置历史、源代码模式、格式命令、专注/打字机模式
 ├── find.js              重写：基于 @codemirror/search 的 SearchQuery，保留现有查找栏界面
@@ -87,6 +88,8 @@ test/
 - 键盘：`ArrowUp/Down/Left/Right`、`Home`、`End` 导致激活块变化时，以按键前光标所在行为锚点，同一机制补偿；之后若光标不可见，用 `EditorView.scrollIntoView(head, { y: 'nearest' })`。
 - 输入导致高度变化：以光标所在行为锚点（CodeMirror 默认按视口顶部锚定，此处覆盖）。
 - 纯函数 `Anchor.delta(before, after)` 可单测；其余用 CDP 逐帧验证（≤ 2px）。
+
+- 实施中确认的约束：鼠标按住期间冻结显示，松开后再展开（布局变化时 CodeMirror 会按原坐标重新取位置，选区会错位）；小部件与行不得使用外边距（CodeMirror 不计入，位置映射会错位）；围栏行用零高度行折叠，不用跨换行的替换装饰；上下方向键由 `moveIntoBlock` 进入被整块替换的图表/公式。
 
 ### 现有功能（US5，FR-608/609）
 - `KEYMAP`、菜单与命令表保留，`FORMAT` 改为 `editor.js` 中的命令（包裹/去除标记、行首前缀、插入块），每个命令一个事务。

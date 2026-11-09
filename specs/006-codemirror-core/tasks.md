@@ -26,15 +26,15 @@
 - [ ] T616 [US3] 中文输入法实测（微软拼音：候选、`Esc` 取消、候选框位置、表格单元格内输入）
 
 ## 阶段 4：用户故事 4 —— 不跳动 (P1)
-- [ ] T617 [US4] `src/anchor.js`：点击与键盘锚定（`requestMeasure` 同帧补偿）、输入时以光标行锚定 + `Anchor.delta` 单元测试
-- [ ] T618 [US4] CDP 逐帧 + 真实鼠标/方向键验证（≤ 2px、光标可见、拖选不受影响）
+- [x] T617 [US4] `src/anchor.js`：点击与键盘锚定（`requestMeasure` 同帧补偿）、输入时以光标行锚定 + `Anchor.delta` 单元测试
+- [x] T618 [US4] CDP 逐帧 + 真实鼠标/方向键验证（≤ 2px、光标可见、拖选不受影响）
 
 ## 阶段 5：用户故事 5 —— 现有功能 (P1)
-- [ ] T619 [US5] 格式命令（`FORMAT`、标题、段落、插入表格/公式块等），每个命令一个事务；`KEYMAP` 与菜单一致
-- [ ] T620 [P] [US5] `src/find.js` 重写：查找、替换、全部替换、源代码模式可用
-- [ ] T621 [P] [US5] 大纲按行号跳转、专注模式、打字机模式
-- [ ] T622 [US5] 图片粘贴与拖入
-- [ ] T623 [US5] 导出：`export.js` 改用 markdown-it + `render.js` + `test/markdown-html.test.js`；HTML 与 PDF 对比 0.2.1
+- [x] T619 [US5] 格式命令（`FORMAT`、标题、段落、插入表格/公式块等），每个命令一个事务；`KEYMAP` 与菜单一致
+- [x] T620 [P] [US5] `src/find.js` 重写：查找、替换、全部替换、源代码模式可用
+- [x] T621 [P] [US5] 大纲按行号跳转、专注模式、打字机模式
+- [x] T622 [US5] 图片粘贴与拖入
+- [x] T623 [US5] 导出：`export.js` 改用 markdown-it + `render.js` + `test/markdown-html.test.js`；HTML 与 PDF 对比 0.2.1
 
 ## 阶段 6：验证与发布
 - [ ] T624 NFR-601 性能实测（长文档与约 10000 行文档）；NFR-604 启动时间与内存

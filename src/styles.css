@@ -284,6 +284,10 @@ body {
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
+#editor .cm-line.im-fence-hidden {
+  height: 0;
+  overflow: hidden;
+}
 #editor .im-hr {
   height: 1.75em;
   background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
@@ -291,6 +295,7 @@ body {
 .im-image {
   display: inline-block;
   max-width: 100%;
+  height: auto;
   vertical-align: bottom;
 }
 .im-broken {
@@ -316,8 +321,10 @@ body {
   color: var(--accent);
   cursor: pointer;
 }
+.im-table-wrap {
+  padding: 8px 0;
+}
 .im-table {
-  margin: 8px 0;
   border-collapse: collapse;
 }
 .im-table th,
@@ -345,6 +352,15 @@ body {
 .im-table td:focus,
 .im-table th:focus {
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* 专注模式（FR-008） */
+#editor.focus-mode .cm-content > * {
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+#editor.focus-mode .cm-content > .im-active {
+  opacity: 1;
 }
 
 /* 打字机模式：底部留白让最后一行也能居中 */
@@ -399,10 +415,10 @@ body {
 #findbar button:hover {
   background: var(--hover);
 }
-::highlight(im-find) {
+.im-find {
   background-color: rgba(255, 196, 61, 0.45);
 }
-::highlight(im-find-current) {
+.im-find-current {
   background-color: #ff9632;
   color: #000;
 }

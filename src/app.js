@@ -88,6 +88,7 @@ function loadDoc(doc) {
   refreshPanels();
   highlightTreeCurrent();
   editor.focus();
+  if (!findbar.hidden) runFind();
 }
 
 async function save(as = false) {
@@ -131,8 +132,26 @@ async function openPath(p) {
 
 // ---------------------------------------------------------------- 排版命令（FR-012）
 
-// 排版命令由 T619 实现
-const FORMAT = {};
+const FORMAT = Object.fromEntries(
+  [
+    'bold',
+    'italic',
+    'strike',
+    'underline',
+    'inline-code',
+    'link',
+    'heading',
+    'paragraph',
+    'quote',
+    'list',
+    'ordered-list',
+    'check',
+    'code-block',
+    'math-block',
+    'table',
+    'line',
+  ].map((name) => [name, (arg) => editor.format[name](arg)]),
+);
 
 // ---------------------------------------------------------------- 视图命令
 
@@ -250,45 +269,6 @@ function highlightTreeCurrent() {
   document.querySelectorAll('#tree .row').forEach((r) => r.classList.toggle('current', r.dataset.path === state.path));
 }
 
-// ---------------------------------------------------------------- 专注 / 打字机（FR-008）
-
-function getScroller(el) {
-  for (let n = el; n && n !== document.body; n = n.parentElement) {
-    const { overflowY } = getComputedStyle(n);
-    if ((overflowY === 'auto' || overflowY === 'scroll') && n.scrollHeight > n.clientHeight) return n;
-  }
-  return el;
-}
-
-function currentBlock() {
-  const sel = getSelection();
-  if (!sel.rangeCount) return null;
-  const root = modeElement();
-  let n = sel.anchorNode;
-  while (n && n.parentNode !== root) n = n.parentNode;
-  return n && n.nodeType === 1 ? n : null;
-}
-
-function onCaretMove() {
-  if (!editor || !modeElement().contains(getSelection().anchorNode)) return;
-  if (state.focus) {
-    const block = currentBlock();
-    modeElement()
-      .querySelectorAll(':scope > .im-active')
-      .forEach((b) => b !== block && b.classList.remove('im-active'));
-    if (block) block.classList.add('im-active');
-  }
-  if (state.typewriter) {
-    const sel = getSelection();
-    let rect = sel.getRangeAt(0).getBoundingClientRect();
-    if (!rect.height) rect = (currentBlock() || modeElement()).getBoundingClientRect();
-    const scroller = getScroller(modeElement());
-    const box = scroller.getBoundingClientRect();
-    scroller.scrollTop += rect.top - (box.top + scroller.clientHeight / 2);
-  }
-}
-document.addEventListener('selectionchange', onCaretMove);
-
 // ---------------------------------------------------------------- 查找替换（FR-013）
 
 const findbar = $('#findbar');
@@ -303,7 +283,7 @@ function showFindResult({ active, total }) {
 
 function runFind() {
   findStale = false;
-  showFindResult(Finder.search(modeElement(), findInput.value));
+  showFindResult(Finder.search(editor.view, findInput.value));
 }
 
 function showFindbar(withReplace) {
@@ -318,14 +298,14 @@ function showFindbar(withReplace) {
 
 function hideFindbar() {
   findbar.hidden = true;
-  Finder.clear();
+  Finder.clear(editor.view);
   $('#find-count').textContent = '';
   editor.focus();
 }
 
 function findStep(forward) {
   if (findStale) runFind();
-  else showFindResult(Finder.step(forward));
+  else showFindResult(Finder.step(editor.view, forward));
 }
 
 findInput.addEventListener('input', runFind);
@@ -336,14 +316,8 @@ $('#find-next').addEventListener('click', () => findStep(true));
 $('#find-prev').addEventListener('click', () => findStep(false));
 $('#find-close').addEventListener('click', hideFindbar);
 $('#replace-all').addEventListener('click', () => {
-  const q = findInput.value;
-  if (!q) return;
-  const md = editor.getValue();
-  const n = md.split(q).length - 1;
-  if (n) {
-    editor.replaceAll(md.split(q).join(replaceInput.value));
-  }
-  Finder.clear();
+  if (!findInput.value) return;
+  const n = Finder.replaceAll(editor.view, findInput.value, replaceInput.value);
   $('#find-count').textContent = `已替换 ${n} 处`;
 });
 findbar.addEventListener('keydown', (e) => {
@@ -352,15 +326,10 @@ findbar.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- 导出（FR-014）
 
-// 改用 markdown-it 由 T623 实现
-async function renderForExport() {
-  throw new Error('导出尚未迁移（T623）');
-}
-
 async function exportAs(kind) {
   const name = state.path ? basename(state.path).replace(/\.\w+$/, '') : '未命名';
   const defaultPath = (state.path ? dirname(state.path) + '\\' : '') + `${name}.${kind}`;
-  const body = await renderForExport();
+  const body = await Render.renderDocument(editor.getValue());
   let out;
   if (kind === 'pdf') {
     // PDF 由临时 HTML 生成，需用 <base> 让相对图片指向原文档目录
@@ -400,13 +369,13 @@ const COMMANDS = {
   'sidebar-files': () => setSidebar({ visible: true, tab: 'files' }),
   'focus-mode': () => {
     state.focus = !state.focus;
+    editor.setFocusMode(state.focus);
     updateStatus();
-    onCaretMove();
   },
   'typewriter-mode': () => {
     state.typewriter = !state.typewriter;
+    editor.setTypewriterMode(state.typewriter);
     updateStatus();
-    onCaretMove();
   },
   fullscreen: () => api.toggleFullscreen(),
   'zoom-in': () => setZoom(zoom + 0.1),
@@ -476,7 +445,7 @@ window.addEventListener(
     const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
     const hit = KEYMAP[key];
     if (!hit || !editor) return;
-    if (FORMAT[hit[0]] && !modeElement().contains(e.target)) return;
+    if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
     e.preventDefault();
     e.stopPropagation();
     run(...hit);
