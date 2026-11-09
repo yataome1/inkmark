@@ -101,6 +101,7 @@ const tabs = Tabs.create({
   onClose: (tab) => tab.kind === 'start' || closeTabs([tab]),
   onNew: newTab,
   onMenu: showTabMenu,
+  onChange: () => saveSessionSoon(),
   title: tabTitle,
 });
 const closedTabs = []; // 本次运行关闭的文件标签，后关闭的在末尾（US3-5）
@@ -142,7 +143,33 @@ function updateTabMenu() {
   }
 }
 
+let wantedTab = null; // 最后一次要求显示的标签，懒加载完成时只显示它
+
+/** 恢复的标签首次切换时才读取文件（NFR-805） */
+async function loadTab(tab) {
+  if (tab.loading) return;
+  tab.loading = true;
+  let doc;
+  try {
+    doc = await api.readFile(tab.path);
+  } catch {
+    alert(`无法打开文件：\n${tab.path}`);
+    tabs.remove([tab]);
+    updateTabMenu();
+    return;
+  } finally {
+    tab.loading = false;
+  }
+  Object.assign(tab, docFields(doc));
+  if (wantedTab === tab) showTab(tab);
+}
+
 function showTab(tab) {
+  wantedTab = tab;
+  if (!tab.doc) {
+    loadTab(tab);
+    return;
+  }
   const start = tab.kind === 'start';
   editorEl.hidden = start;
   $('#start-page').hidden = !start;
@@ -326,6 +353,45 @@ async function closeTabs(targets) {
 }
 
 const documentTabs = () => tabs.list.filter((t) => t.kind !== 'start');
+
+// ---------------------------------------------------------------- 标签会话（FR-811）
+
+let sessionReady = false; // 恢复完成前不记录，避免启动时覆盖上次的会话
+
+async function writeSession() {
+  if (!sessionReady) return;
+  const saved = tabs.list.filter((t) => t.path);
+  state.settings = await api.setSettings({
+    tabs: { paths: saved.map((t) => t.path), active: Math.max(saved.indexOf(tabs.current), 0) },
+  });
+}
+
+const saveSessionSoon = debounce(writeSession, 300);
+
+/** 恢复上次的标签，只读取当前标签；有标签显示时返回 true */
+async function restoreSession() {
+  if (!state.settings.restoreTabs) return false;
+  const { paths, active } = state.settings.tabs;
+  if (!paths.length) return false;
+  const info = await api.pathInfo(paths);
+  const restored = paths
+    .filter((_, i) => info[i].exists && !info[i].dir)
+    .map((p) => ({ kind: 'doc', path: p, untitledNo: 0, format: { bom: false, eol: '\n' }, doc: null, dirty: false }));
+  const skipped = paths.length - restored.length;
+  restored.forEach((tab) => tabs.insert(tab));
+  const first = restored.find((t) => t.path === paths[active]) || restored[0];
+  for (const tab of first ? [first, ...restored.filter((t) => t !== first)] : []) {
+    try {
+      Object.assign(tab, docFields(await api.readFile(tab.path)));
+      showTab(tab);
+      if (skipped) $('#status-flags').textContent = `已跳过 ${skipped} 个不存在的文件`;
+      return true;
+    } catch {
+      tabs.remove([tab]);
+    }
+  }
+  return false;
+}
 
 function cycleTab(step) {
   if (busy) return;
@@ -732,6 +798,7 @@ const COMMANDS = {
   'close-others': () => closeTabs(tabs.list.filter((t) => t !== tabs.current)),
   'close-all': () => closeTabs(documentTabs()),
   'reopen-tab': reopenTab,
+  'toggle-restore-tabs': async () => (state.settings = await api.setSettings({ restoreTabs: !state.settings.restoreTabs })),
   'next-tab': () => cycleTab(1),
   'prev-tab': () => cycleTab(-1),
   'goto-tab': (n) => gotoTab(Number(n)),
@@ -913,20 +980,24 @@ async function uploadImages(files) {
 document.querySelectorAll('.sidebar-tabs button').forEach((b) => b.addEventListener('click', () => setSidebar({ tab: b.dataset.tab })));
 $('#open-folder').addEventListener('click', () => run('open-folder'));
 api.onCommand(({ cmd, arg }) => run(cmd, arg));
-api.onOpenFile((p) => run('open-path', p));
+api.onOpenFile((paths) => paths.forEach((p) => run('open-path', p)));
 api.onCloseRequested(async (e) => {
-  if (busy || !(await settleDirty(tabs.list))) e.preventDefault();
+  if (busy || !(await settleDirty(tabs.list))) return e.preventDefault();
+  await writeSession();
 });
 
 (async () => {
   state.settings = await api.getSettings();
   editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
-  const first = startFields();
-  tabs.insert(first);
-  showTab(first);
+  if (!(await restoreSession())) {
+    const first = startFields();
+    tabs.insert(first);
+    showTab(first);
+  }
+  sessionReady = true;
+  saveSessionSoon();
   applySidebar();
   if (state.settings.folder) showFolder(state.settings.folder);
   refreshStars();
-  const initial = await api.appReady();
-  if (initial) openPath(initial);
+  (await api.appReady()).forEach((p) => openPath(p));
 })();

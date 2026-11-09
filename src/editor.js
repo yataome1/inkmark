@@ -269,7 +269,7 @@
       createDoc,
       activate,
       docText: (doc) => docOf(doc).toString(),
-      isDocDirty: (doc) => !doc.saved.eq(docOf(doc)),
+      isDocDirty: (doc) => !!doc && !doc.saved.eq(docOf(doc)), // 懒加载前 doc 为 null
       isDirty: () => !current.saved.eq(view.state.doc),
       markSaved(doc = current) {
         doc.saved = docOf(doc);

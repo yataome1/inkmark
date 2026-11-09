@@ -9,9 +9,9 @@
 
   /**
    * @param {{ bar: HTMLElement, onSelect: (tab: object) => void, onClose: (tab: object) => void, onNew: () => void,
-   *   onMenu: (tab: object, x: number, y: number) => void, title: (tab: object) => string }} options
+   *   onMenu: (tab: object, x: number, y: number) => void, onChange: () => void, title: (tab: object) => string }} options
    */
-  function create({ bar, onSelect, onClose, onNew, onMenu, title }) {
+  function create({ bar, onSelect, onClose, onNew, onMenu, onChange, title }) {
     const list = [];
     let current = null;
     const elements = new Map();
@@ -174,6 +174,7 @@
         }),
       );
       updateNarrow();
+      onChange();
     }
 
     strip.addEventListener(
@@ -222,9 +223,10 @@
       select(tab) {
         const previous = current;
         current = tab;
-        if (previous) refresh(previous);
+        if (previous && list.includes(previous)) refresh(previous);
         refresh(tab);
         reveal(tab);
+        onChange();
       },
       update: refresh,
       /** 打开已打开的文件时提示用户切换到了哪个标签（FR-802） */

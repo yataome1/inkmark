@@ -3,10 +3,14 @@
 //! WebView2 拥有焦点时注册的菜单快捷键不会触发（research.md R2），因此所有快捷键只以
 //! `文字\t快捷键` 的形式显示，按键统一由前端 `app.js` 的 KEYMAP 处理。
 //! 菜单 id 形如 `命令` 或 `命令:参数`，由 lib.rs 转为前端的 `command` 事件。
+//!
+//! 菜单栏只在启动时创建一次：替换菜单栏会让 Windows 先移除再加回菜单，窗口内容区随之跳动，
+//! 之后的变化都由 `sync` 原地更新。
 
 use serde::Deserialize;
 use tauri::menu::{
-    CheckMenuItemBuilder, Menu, MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder,
+    CheckMenuItemBuilder, Menu, MenuBuilder, MenuItem, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, Submenu,
+    SubmenuBuilder,
 };
 use tauri::{AppHandle, Runtime};
 
@@ -32,67 +36,135 @@ fn item<R: Runtime>(app: &AppHandle<R>, id: &str, label: &str, shortcut: &str) -
     MenuItemBuilder::with_id(id, text).build(app)
 }
 
-pub fn build<R: Runtime>(
+fn fill_recent<R: Runtime>(app: &AppHandle<R>, menu: &Submenu<R>, recent: &[String]) -> tauri::Result<()> {
+    if recent.is_empty() {
+        return menu.append(&MenuItemBuilder::new("（无）").enabled(false).build(app)?);
+    }
+    for p in recent {
+        menu.append(&item(app, &format!("open-path:{p}"), p, "")?)?;
+    }
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&item(app, "clear-recent", "清除最近打开", "")?)
+}
+
+/// 最近文件没有变化时不动子菜单。
+fn sync_recent<R: Runtime>(app: &AppHandle<R>, menu: &Submenu<R>, recent: &[String]) -> tauri::Result<()> {
+    let current: Vec<String> = menu
+        .items()?
+        .iter()
+        .filter_map(|k| k.id().as_ref().strip_prefix("open-path:").map(String::from))
+        .collect();
+    if current == recent {
+        return Ok(());
+    }
+    while !menu.items()?.is_empty() {
+        menu.remove_at(0)?;
+    }
+    fill_recent(app, menu, recent)
+}
+
+fn flatten<R: Runtime>(items: Vec<MenuItemKind<R>>, out: &mut Vec<MenuItemKind<R>>) -> tauri::Result<()> {
+    for kind in items {
+        if let MenuItemKind::Submenu(s) = &kind {
+            flatten(s.items()?, out)?;
+        }
+        out.push(kind);
+    }
+    Ok(())
+}
+
+/// 原地更新最近文件、收藏文字，以及各项的启用和勾选状态；状态未变的项不动。
+pub fn sync<R: Runtime>(
     app: &AppHandle<R>,
     recent: &[String],
     theme: &str,
-    sample: &str,
     (favorited, can_favorite): (bool, bool),
     tab: TabMenu,
-) -> tauri::Result<Menu<R>> {
-    let i = |id: &str, label: &str, shortcut: &str| item(app, id, label, shortcut);
-    let when = |enabled: bool, id: &str, label: &str, shortcut: &str| -> tauri::Result<MenuItem<R>> {
-        let m = item(app, id, label, shortcut)?;
-        m.set_enabled(enabled)?;
-        Ok(m)
+    restore_tabs: bool,
+) -> tauri::Result<()> {
+    let Some(menu) = app.menu() else {
+        return Ok(());
     };
+    let enabled = |id: &str| match id {
+        "save" | "save-as" | "close-tab" | "close-all" | "find" | "replace" | "source-mode" | "menu-export"
+        | "menu-paragraph" | "menu-format" => Some(tab.has_doc),
+        "save-all" => Some(tab.any_dirty),
+        "close-others" | "menu-tabs" => Some(tab.can_close_others),
+        "reopen-tab" => Some(tab.can_reopen),
+        "toggle-favorite-current" => Some(can_favorite),
+        _ => None,
+    };
+    let mut all = Vec::new();
+    flatten(menu.items()?, &mut all)?;
+    for kind in &all {
+        let id: &str = kind.id().as_ref();
+        match kind {
+            MenuItemKind::MenuItem(m) => {
+                if let Some(on) = enabled(id).filter(|on| m.is_enabled().is_ok_and(|now| now != *on)) {
+                    m.set_enabled(on)?;
+                }
+                if id == "toggle-favorite-current" {
+                    let label = if favorited {
+                        "取消收藏当前文件"
+                    } else {
+                        "收藏当前文件"
+                    };
+                    if m.text()? != label {
+                        m.set_text(label)?;
+                    }
+                }
+            }
+            MenuItemKind::Submenu(m) => {
+                if let Some(on) = enabled(id).filter(|on| m.is_enabled().is_ok_and(|now| now != *on)) {
+                    m.set_enabled(on)?;
+                }
+                if id == "menu-recent" {
+                    sync_recent(app, m, recent)?;
+                }
+            }
+            MenuItemKind::Check(m) => {
+                let checked = if id == "toggle-restore-tabs" {
+                    restore_tabs
+                } else {
+                    id.strip_prefix("theme:") == Some(theme)
+                };
+                if m.is_checked()? != checked {
+                    m.set_checked(checked)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// 启动时创建一次；状态由随后的 `sync` 填入。
+pub fn build<R: Runtime>(app: &AppHandle<R>, sample: &str) -> tauri::Result<Menu<R>> {
+    let i = |id: &str, label: &str, shortcut: &str| item(app, id, label, shortcut);
     let sep = || PredefinedMenuItem::separator(app);
 
-    let mut recent_menu = SubmenuBuilder::new(app, "最近打开");
-    if recent.is_empty() {
-        recent_menu = recent_menu.item(&MenuItemBuilder::new("（无）").enabled(false).build(app)?);
-    } else {
-        for p in recent {
-            recent_menu = recent_menu.item(&i(&format!("open-path:{p}"), p, "")?);
-        }
-        recent_menu = recent_menu.item(&sep()?).item(&i("clear-recent", "清除最近打开", "")?);
-    }
+    let recent_menu = SubmenuBuilder::with_id(app, "menu-recent", "最近打开").build()?;
+    fill_recent(app, &recent_menu, &[])?;
 
     let file = SubmenuBuilder::new(app, "文件(&F)")
         .item(&i("new", "新建", "Ctrl+N")?)
         .item(&i("open", "打开…", "Ctrl+O")?)
         .item(&i("open-folder", "打开文件夹…", "Ctrl+Shift+O")?)
-        .item(&recent_menu.build()?)
-        .item(
-            &MenuItemBuilder::with_id(
-                "toggle-favorite-current",
-                if favorited {
-                    "取消收藏当前文件"
-                } else {
-                    "收藏当前文件"
-                },
-            )
-            .enabled(can_favorite)
-            .build(app)?,
-        )
+        .item(&recent_menu)
+        .item(&MenuItemBuilder::with_id("toggle-favorite-current", "收藏当前文件").build(app)?)
         .item(&sep()?)
-        .item(&when(tab.has_doc, "save", "保存", "Ctrl+S")?)
-        .item(&when(tab.has_doc, "save-as", "另存为…", "Ctrl+Shift+S")?)
-        .item(&when(tab.any_dirty, "save-all", "全部保存", "Ctrl+Alt+S")?)
+        .item(&i("save", "保存", "Ctrl+S")?)
+        .item(&i("save-as", "另存为…", "Ctrl+Shift+S")?)
+        .item(&i("save-all", "全部保存", "Ctrl+Alt+S")?)
         .item(&sep()?)
-        .item(&when(tab.has_doc, "close-tab", "关闭标签", "Ctrl+W")?)
-        .item(&when(tab.can_close_others, "close-others", "关闭其他标签", "")?)
-        .item(&when(tab.has_doc, "close-all", "关闭全部标签", "")?)
-        .item(&when(
-            tab.can_reopen,
-            "reopen-tab",
-            "重新打开关闭的标签",
-            "Ctrl+Shift+T",
-        )?)
+        .item(&i("close-tab", "关闭标签", "Ctrl+W")?)
+        .item(&i("close-others", "关闭其他标签", "")?)
+        .item(&i("close-all", "关闭全部标签", "")?)
+        .item(&i("reopen-tab", "重新打开关闭的标签", "Ctrl+Shift+T")?)
+        .item(&CheckMenuItemBuilder::with_id("toggle-restore-tabs", "启动时恢复上次的标签").build(app)?)
         .item(&sep()?)
         .item(
-            &SubmenuBuilder::new(app, "导出")
-                .enabled(tab.has_doc)
+            &SubmenuBuilder::with_id(app, "menu-export", "导出")
                 .item(&i("export-html", "HTML…", "")?)
                 .item(&i("export-pdf", "PDF…", "")?)
                 .build()?,
@@ -107,11 +179,11 @@ pub fn build<R: Runtime>(
         .item(&PredefinedMenuItem::paste(app, Some("粘贴"))?)
         .item(&PredefinedMenuItem::select_all(app, Some("全选"))?)
         .item(&sep()?)
-        .item(&when(tab.has_doc, "find", "查找", "Ctrl+F")?)
-        .item(&when(tab.has_doc, "replace", "替换", "Ctrl+H")?)
+        .item(&i("find", "查找", "Ctrl+F")?)
+        .item(&i("replace", "替换", "Ctrl+H")?)
         .build()?;
 
-    let mut paragraph = SubmenuBuilder::new(app, "段落(&P)").enabled(tab.has_doc);
+    let mut paragraph = SubmenuBuilder::with_id(app, "menu-paragraph", "段落(&P)");
     for n in 1..=6 {
         paragraph = paragraph.item(&i(
             &format!("heading:{n}"),
@@ -134,8 +206,7 @@ pub fn build<R: Runtime>(
         .item(&i("line", "水平分割线", "Ctrl+Shift+-")?)
         .build()?;
 
-    let format = SubmenuBuilder::new(app, "格式(&O)")
-        .enabled(tab.has_doc)
+    let format = SubmenuBuilder::with_id(app, "menu-format", "格式(&O)")
         .item(&i("bold", "加粗", "Ctrl+B")?)
         .item(&i("italic", "斜体", "Ctrl+I")?)
         .item(&i("underline", "下划线", "Ctrl+U")?)
@@ -144,8 +215,7 @@ pub fn build<R: Runtime>(
         .item(&i("link", "超链接", "Ctrl+K")?)
         .build()?;
 
-    let mut tabs = SubmenuBuilder::new(app, "标签")
-        .enabled(tab.can_close_others)
+    let mut tabs = SubmenuBuilder::with_id(app, "menu-tabs", "标签")
         .item(&i("next-tab", "下一个标签", "Ctrl+Tab")?)
         .item(&i("prev-tab", "上一个标签", "Ctrl+Shift+Tab")?)
         .item(&i("move-tab:1", "向右移动标签", "Ctrl+Shift+PageDown")?)
@@ -161,7 +231,7 @@ pub fn build<R: Runtime>(
     let tabs = tabs.item(&i("goto-tab:9", "最后一个标签", "Alt+9")?).build()?;
 
     let view = SubmenuBuilder::new(app, "视图(&V)")
-        .item(&when(tab.has_doc, "source-mode", "源代码模式", "Ctrl+/")?)
+        .item(&i("source-mode", "源代码模式", "Ctrl+/")?)
         .item(&sep()?)
         .item(&i("toggle-sidebar", "显示/隐藏侧边栏", "Ctrl+Shift+L")?)
         .item(&i("sidebar-outline", "大纲", "Ctrl+Shift+1")?)
@@ -181,11 +251,7 @@ pub fn build<R: Runtime>(
 
     let mut themes = SubmenuBuilder::new(app, "主题(&T)");
     for (value, label) in [("system", "跟随系统"), ("light", "浅色"), ("dark", "深色")] {
-        themes = themes.item(
-            &CheckMenuItemBuilder::with_id(format!("theme:{value}"), label)
-                .checked(theme == value)
-                .build(app)?,
-        );
+        themes = themes.item(&CheckMenuItemBuilder::with_id(format!("theme:{value}"), label).build(app)?);
     }
 
     let help = SubmenuBuilder::new(app, "帮助(&H)")
