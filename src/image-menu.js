@@ -15,8 +15,9 @@
   const extOf = (path) => path.split('.').pop().toLowerCase();
   const basename = (p) => p.split(/[\\/]/).pop();
 
-  /** 画到画布再转 PNG：剪贴板只接受 image/png；动态 GIF 取第一帧，SVG 按显示尺寸（FR-1202） */
-  async function toPng(bytes, ext, shown) {
+  /** 画到画布再转 PNG：剪贴板只接受 image/png；动态 GIF 取第一帧，SVG 按显示尺寸（FR-1202）。
+   *  background 为可选底色（specs/014 图表复制为图片） */
+  async function toPng(bytes, ext, shown, background) {
     const blob = new Blob([bytes], { type: MIME[ext] });
     let source;
     let width;
@@ -39,7 +40,12 @@
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    canvas.getContext('2d').drawImage(source, 0, 0, width, height);
+    const ctx = canvas.getContext('2d');
+    if (background) {
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, width, height);
+    }
+    ctx.drawImage(source, 0, 0, width, height);
     return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('无法生成图片'))), 'image/png'));
   }
 
@@ -112,5 +118,5 @@
     );
   }
 
-  root.ImageMenu = { attach };
+  root.ImageMenu = { attach, toPng };
 })(this);

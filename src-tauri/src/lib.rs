@@ -6,6 +6,7 @@ mod fileops;
 mod menu;
 mod pdf;
 mod settings;
+mod webview;
 
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -586,7 +587,7 @@ pub fn run() {
             });
 
             let handle = app.handle().clone();
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Inkmark")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(600.0, 400.0)
@@ -600,6 +601,7 @@ pub fn run() {
                     internal
                 })
                 .build()?;
+            webview::configure(&win);
             app.set_menu(menu::build(app.handle())?)?;
             let (images, _) = image_dir(app.handle());
             if images.is_dir() {

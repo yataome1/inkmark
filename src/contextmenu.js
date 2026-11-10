@@ -1,4 +1,4 @@
-// 通用右键菜单（FR-203、FR-211）：只用于表格单元格、文件树、收藏列表，其他位置保持系统菜单。
+// 通用右键菜单（FR-203、FR-211）：Inkmark 所有右键菜单的外观与键盘操作；入口见 edit-menu.js（specs/014）。
 'use strict';
 
 (function (root) {
@@ -83,7 +83,8 @@
 
     menu.style.left = '0';
     menu.style.top = '0';
-    document.body.append(menu);
+    // 模态对话框打开时页面其余部分不可点击，菜单放进对话框（specs/014 US2-3）
+    (document.querySelector('dialog[open]') || document.body).append(menu);
     const { width, height } = menu.getBoundingClientRect();
     menu.style.left = `${Math.max(0, Math.min(x, innerWidth - width))}px`;
     menu.style.top = `${Math.max(0, Math.min(y, innerHeight - height))}px`;
