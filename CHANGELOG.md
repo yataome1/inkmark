@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-10
+
 实现规格 [014-context-menus](specs/014-context-menus/spec.md)。
 
 ### 新增
