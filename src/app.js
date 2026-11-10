@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder */
 'use strict';
 
 const api = window.inkmark;
@@ -82,8 +82,8 @@ async function imageUrl(src) {
   const r = Render.resolveImage(src, state.path ? dirname(state.path) : null);
   if (!r) return null;
   if (r.url) return r.url;
-  await api.allowImage(r.path);
-  return api.toAssetUrl(r.path);
+  // 原路径不存在时由后端在图片文件夹中按哈希名查找（FR-1104）
+  return api.toAssetUrl(await api.allowImage(r.path));
 }
 
 function updatePanels() {
@@ -177,8 +177,9 @@ function showTab(tab) {
     findbar.hidden = true;
     $('#find-count').textContent = '';
   }
-  editor.activate(tab.doc);
+  // 先切换当前标签：换入文档时图片按 state.path 解析相对路径，必须是新文档的目录
   tabs.select(tab);
+  editor.activate(tab.doc);
   updateTitle();
   updatePanels();
   highlightTreeCurrent();
@@ -747,10 +748,89 @@ findbar.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- 导出（FR-014）
 
+const fileUrl = (p) =>
+  'file:///' +
+  p
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((seg, i) => (i === 0 ? seg : encodeURIComponent(seg)))
+    .join('/');
+
+/** 文档中的本地图片引用：[{ from, to, path }]；网络地址与无法解析的相对路径跳过 */
+function localImageRefs() {
+  const dir = state.path ? dirname(state.path) : null;
+  return editor.imageRefs().flatMap((ref) => {
+    const r = Render.resolveImage(ref.src, dir);
+    return r?.path ? [{ ...ref, path: r.path }] : [];
+  });
+}
+
+/** 导出时，原路径不存在而在图片文件夹中找到的图片改用新地址（FR-1104） */
+async function localizeImages(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const dir = state.path ? dirname(state.path) : null;
+  for (const img of doc.querySelectorAll('img[src]')) {
+    const r = Render.resolveImage(img.getAttribute('src'), dir);
+    if (!r?.path) continue;
+    const found = await api.resolveImage(r.path);
+    if (found && TabUtils.pathKey(found) !== TabUtils.pathKey(r.path)) img.setAttribute('src', fileUrl(found));
+  }
+  return doc.body.innerHTML;
+}
+
+/** 导出可分享副本（FR-1106）：图片复制到 <文件名>.assets，地址改为相对路径，原文档不变 */
+async function exportShareCopy() {
+  const name = state.path ? basename(state.path) : `${docName()}.md`;
+  const target = await api.askSavePath((state.path ? dirname(state.path) + '\\' : '') + name);
+  if (!target) return;
+  if (state.path && TabUtils.pathKey(target) === TabUtils.pathKey(state.path)) {
+    alert('不能覆盖原文档，请选择其他位置或文件名。');
+    return;
+  }
+  const refs = localImageRefs();
+  const folder = `${basename(target).replace(/\.[^.]+$/, '')}.assets`;
+  if (refs.length && (await api.pathInfo([dirname(target) + '\\' + folder]))[0].exists && !(await api.confirmOverwrite(folder))) return;
+  try {
+    const results = await api.copyShareImages(
+      target,
+      refs.map((r) => r.path),
+    );
+    const edits = refs.flatMap((r, i) => (results[i] ? [{ from: r.from, to: r.to, insert: results[i] }] : []));
+    await api.writeExport(target, DocFormat.join(TextUtils.applyEdits(editor.getValue(), edits), state.format));
+    const missing = refs.length - edits.length;
+    $('#status-flags').textContent = `已导出可分享副本，复制 ${edits.length} 张图片${missing ? `，${missing} 张找不到` : ''}`;
+  } catch (e) {
+    alert(`导出失败：\n${e}`);
+  }
+}
+
+/** 收入图片文件夹（FR-1110）：一步可撤销的地址替换，不自动保存 */
+async function importImages() {
+  const refs = localImageRefs();
+  let results;
+  try {
+    results = await api.importImages(refs.map((r) => r.path));
+  } catch (e) {
+    alert(`无法收入图片：\n${e}`);
+    return;
+  }
+  const count = (status) => results.filter((r) => r.status === status).length;
+  const edits = refs.flatMap((r, i) => (results[i].url ? [{ from: r.from, to: r.to, insert: results[i].url }] : []));
+  if (!edits.length) {
+    $('#status-flags').textContent = count('missing') ? `没有可收入的图片，${count('missing')} 张找不到` : '没有需要收入的图片';
+    return;
+  }
+  editor.replaceRanges(edits);
+  const parts = [`收入 ${count('imported')} 张图片`];
+  if (count('exists')) parts.push(`${count('exists')} 张已存在`);
+  if (count('missing')) parts.push(`${count('missing')} 张找不到`);
+  $('#status-flags').textContent = parts.join('，');
+}
+
 async function exportAs(kind) {
   const name = state.path ? basename(state.path).replace(/\.\w+$/, '') : '未命名';
   const defaultPath = (state.path ? dirname(state.path) + '\\' : '') + `${name}.${kind}`;
-  const body = await Render.renderDocument(editor.getValue());
+  const body = await localizeImages(await Render.renderDocument(editor.getValue()));
   let out;
   if (kind === 'pdf') {
     // PDF 由临时 HTML 生成，需用 <base> 让相对图片指向原文档目录
@@ -793,6 +873,9 @@ const COMMANDS = {
   about: () => about.about(),
   'third-party': () => about.thirdParty(),
   shortcuts: () => about.shortcuts(),
+  'image-folder': () => imageFolder.show(),
+  'export-share': exportShareCopy,
+  'import-images': importImages,
   'clear-recent': async () => (state.settings = await api.setSettings({ recent: [] })),
   save: () => saveTab(tabs.current),
   'save-as': () => saveTab(tabs.current, true),
@@ -827,21 +910,44 @@ const COMMANDS = {
     updateStatus();
   },
   fullscreen: () => api.toggleFullscreen(),
-  'zoom-in': () => setZoom(zoom + 0.1),
-  'zoom-out': () => setZoom(zoom - 0.1),
+  'zoom-in': () => setZoom(TextUtils.stepZoom(zoom, 1)),
+  'zoom-out': () => setZoom(TextUtils.stepZoom(zoom, -1)),
   'zoom-reset': () => setZoom(1),
   theme: async (theme) => (state.settings = await api.setSettings({ theme })),
   quit: () => api.close(),
 };
 
 let zoom = 1;
+const saveZoomSoon = debounce(async () => (state.settings = await api.setSettings({ zoom })), 300);
 function setZoom(z) {
-  zoom = Math.min(3, Math.max(0.5, Math.round(z * 10) / 10));
+  zoom = TextUtils.normalizeZoom(z);
   api.setZoom(zoom);
+  saveZoomSoon(); // FR-1108
 }
+
+// Ctrl+滚轮缩放（FR-1107）：按设备像素累计，约一档普通滚轮（100）缩放 10%
+let wheelZoom = 0;
+window.addEventListener(
+  'wheel',
+  (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    // 页面缩放后浏览器按 CSS 像素报告，乘回缩放比例；取整避免 100/1.1*1.1 这类浮点误差
+    const px = Math.round(e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1) * zoom);
+    if (Math.sign(px) !== Math.sign(wheelZoom)) wheelZoom = 0;
+    wheelZoom += px;
+    while (Math.abs(wheelZoom) >= 100) {
+      setZoom(TextUtils.stepZoom(zoom, wheelZoom < 0 ? 1 : -1));
+      wheelZoom -= Math.sign(wheelZoom) * 100;
+    }
+  },
+  { capture: true, passive: false },
+);
 
 // 起始页不是文档，这些命令不可用（FR-815）
 const DOCUMENT_COMMANDS = new Set([
+  'export-share',
+  'import-images',
   'save',
   'save-as',
   'export-html',
@@ -856,9 +962,11 @@ const DOCUMENT_COMMANDS = new Set([
 ]);
 
 const about = About.create({ dialog: $('#about'), appInfo: api.appInfo, openLink: api.openLink });
+const imageFolder = ImageFolder.create({ dialog: $('#image-folder'), api, onStatus: (text) => ($('#status-flags').textContent = text) });
+const dialogOpen = () => !!document.querySelector('dialog[open]');
 
 function run(cmd, arg) {
-  if (!editor || about.isOpen()) return;
+  if (!editor || dialogOpen()) return;
   if (isStart() && (FORMAT[cmd] || DOCUMENT_COMMANDS.has(cmd))) return;
   if (FORMAT[cmd]) {
     if (!modeElement().contains(getSelection().anchorNode)) editor.focus();
@@ -925,7 +1033,7 @@ window.addEventListener(
   (e) => {
     const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
     const hit = KEYMAP[key];
-    if (!hit || !editor || about.isOpen()) return;
+    if (!hit || !editor || dialogOpen()) return;
     if (hit[0].startsWith('table-') && !TableUi.isActive()) return; // 只在表格单元格内生效
     if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
     e.preventDefault();
@@ -952,32 +1060,35 @@ editorEl.addEventListener(
   true,
 );
 
-// 拖入 Markdown 文件则打开；拖入图片则保存到 assets/ 并插入（FR-001、FR-011）
+// 拖入 Markdown 文件则打开；拖入图片则保存到图片文件夹并插入（FR-001、FR-1101）
 api.onDragDrop(async ({ type, paths }) => {
-  if (type !== 'drop' || !paths?.length || !editor || about.isOpen()) return;
+  if (type !== 'drop' || !paths?.length || !editor || dialogOpen()) return;
   const docs = paths.filter(isMarkdownPath);
   if (docs.length) return Promise.all(docs.map((p) => openPath(p)));
   if (isStart()) return;
-  for (const p of paths) {
-    try {
-      const src = await api.saveImageFromPath(state.path, p);
-      const url = src.startsWith('file:') ? src : encodeURI(src);
-      editor.insert(`![${basename(p).replace(/\.\w+$/, '')}](${url})\n`);
-    } catch {
-      // 非图片文件：忽略
-    }
+  for (const p of paths.filter((x) => /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(x))) {
+    if (!(await insertImage(() => api.saveImageFromPath(p), basename(p)))) break;
   }
 });
 
 // ---------------------------------------------------------------- 图片（FR-011）
 
+/** 保存图片并插入；图片文件夹不可用等失败时提示，不插入链接。成功返回 true */
+async function insertImage(save, name) {
+  try {
+    editor.insert(`![${name.replace(/\.\w+$/, '')}](${await save()})\n`);
+    return true;
+  } catch (e) {
+    alert(`无法保存图片：\n${e}`);
+    return false;
+  }
+}
+
 async function uploadImages(files) {
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue;
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const src = await api.saveImage(state.path, file.name, bytes);
-    const url = src.startsWith('file:') ? src : encodeURI(src);
-    editor.insert(`![${file.name.replace(/\.\w+$/, '')}](${url})\n`);
+    if (!(await insertImage(() => api.saveImage(file.name, bytes), file.name))) break;
   }
 }
 
@@ -994,6 +1105,8 @@ api.onCloseRequested(async (e) => {
 
 (async () => {
   state.settings = await api.getSettings();
+  zoom = TextUtils.normalizeZoom(state.settings.zoom);
+  if (zoom !== 1) api.setZoom(zoom);
   editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
   if (!(await restoreSession())) {
     const first = startFields();
