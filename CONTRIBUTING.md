@@ -41,6 +41,7 @@ npm start
 2. 按 AGENTS.md 第 1 节新建 `specs/<NNN>-<name>/`，写 `spec.md` 并在 PR 中先评审规格。
 3. 规格通过后补充 `plan.md`、`tasks.md`，再实现。
 4. PR 需通过 CI，并附上 `checklist.md` 验证结果。
+5. 修改 `README.md` 时同步修改英文版 `README.en.md`。
 
 ## 授权与 DCO
 
