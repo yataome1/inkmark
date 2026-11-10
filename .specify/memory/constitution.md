@@ -1,6 +1,6 @@
 # Inkmark 项目宪章 (Constitution)
 
-版本: 1.2.0 | 批准日期: 2026-11-06 | 最近修订: 2026-11-09
+版本: 1.3.0 | 批准日期: 2026-11-06 | 最近修订: 2026-11-10
 
 本宪章约束 Inkmark 的所有规格、设计与实现。规格 (spec)、计划 (plan)、任务 (tasks) 与代码如与本宪章冲突，以本宪章为准。
 
@@ -28,7 +28,7 @@ Inkmark 是本地工具：打开、编辑、保存、渲染（含数学公式、
 Inkmark 是小工具：安装包 ≤ 10MB，免安装版 ≤ 15MB，由 CI 检查。引入新依赖或新的随包资源时，须在 plan 中说明对体积的影响；只打包实际用到的资源。
 
 ## 技术约束
-- 目标平台：Windows 11 x64；产物为 NSIS 安装包与免安装单文件 exe。
+- 目标平台：Windows 10 / 11 x64，以 Windows 11 为主要测试环境；产物为 NSIS 安装包与免安装单文件 exe。
 - 运行时：Tauri 2 + 系统 WebView2（后端 Rust，前端原生 JS，无前端框架；应用代码不经打包，第三方库在 vendor 阶段由 esbuild 打包）。
 - 编辑内核：CodeMirror 6（编辑状态即 Markdown 原文，即时渲染由装饰实现）。
 
@@ -48,3 +48,4 @@ Inkmark 是小工具：安装包 ≤ 10MB，免安装版 ≤ 15MB，由 CI 检�
 | 1.0.0 | 2026-11-06 | 初版 | 001-inkmark-mvp |
 | 1.1.0 | 2026-11-06 | 新增原则 VII 轻量；运行时由 Electron 改为 Tauri 2 + WebView2；原则 V 改为与运行时无关的表述 | 002-tauri-migration：0.1.0 安装包约 120MB，用户期望 10MB 以下 |
 | 1.2.0 | 2026-11-09 | 编辑内核由 Vditor 改为 CodeMirror 6；第三方库允许在 vendor 阶段打包 | 006-codemirror-core：Vditor 撤销整篇重绘、打开即改写文件 |
+| 1.3.0 | 2026-11-10 | 目标平台由 Windows 11 x64 扩展为 Windows 10 / 11 x64，以 Windows 11 为主要测试环境 | 开源准备：Rust 工具链与 WebView2 的最低要求为 Windows 10，README 如实说明支持范围 |
