@@ -21,6 +21,11 @@
     syntaxTree,
     ensureSyntaxTree,
     isolateHistory,
+    undo,
+    redo,
+    undoDepth,
+    redoDepth,
+    selectAll,
   } = CM;
 
   // ---------------------------------------------------------------- 排版命令（FR-012）：每个命令一个事务
@@ -301,6 +306,15 @@
       /** 一次替换多处，作为一步撤销 */
       replaceRanges(edits) {
         isolated(view, () => view.dispatch({ changes: edits }));
+      },
+      // 右键菜单（specs/014 FR-1402）：与快捷键使用同一撤销历史
+      undo: () => undo(view),
+      redo: () => redo(view),
+      canUndo: () => undoDepth(view.state) > 0,
+      canRedo: () => redoDepth(view.state) > 0,
+      selectAll: () => selectAll(view),
+      pasteText(text) {
+        view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: true });
       },
       insert(text) {
         isolated(view, () => view.dispatch(view.state.replaceSelection(text), { scrollIntoView: true }));

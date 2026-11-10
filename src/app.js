@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu, EditMenu */
 'use strict';
 
 const api = window.inkmark;
@@ -1100,6 +1100,14 @@ window.addEventListener(
 
 // ---------------------------------------------------------------- 链接、拖放（FR-001/016）
 
+/** Ctrl+单击与右键“打开链接”（specs/014）共用 */
+function openLink(url) {
+  if (/^https?:/i.test(url)) api.openExternal(url);
+  else if (state.path && isMarkdownPath(url.split('#')[0])) {
+    openPath(resolvePath(dirname(state.path), decodeURI(url.split('#')[0])));
+  }
+}
+
 editorEl.addEventListener(
   'click',
   (e) => {
@@ -1107,10 +1115,7 @@ editorEl.addEventListener(
     const url = e.target.closest('[data-href]')?.dataset.href;
     if (!url) return;
     e.preventDefault();
-    if (/^https?:/i.test(url)) api.openExternal(url);
-    else if (state.path && isMarkdownPath(url.split('#')[0])) {
-      openPath(resolvePath(dirname(state.path), decodeURI(url.split('#')[0])));
-    }
+    openLink(url);
   },
   true,
 );
@@ -1165,6 +1170,14 @@ api.onCloseRequested(async (e) => {
   zoom = TextUtils.normalizeZoom(state.settings.zoom);
   if (zoom !== 1) api.setZoom(zoom);
   editor = Editor.create(editorEl, { onChange, onPasteImages: uploadImages, imageUrl });
+  EditMenu.attach({
+    host: editorEl,
+    editor: () => editor,
+    readOnly: () => !!tabs.current?.readOnly,
+    openLink,
+    pasteImages: uploadImages,
+    onStatus: (text) => ($('#status-flags').textContent = text),
+  });
   if (!(await restoreSession())) {
     const first = startFields();
     tabs.insert(first);
