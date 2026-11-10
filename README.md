@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
 </p>
 
-> An offline-first Markdown viewer & editor for Windows. Live preview editing, outline & file tree, focus/typewriter modes, math, diagrams, and HTML/PDF export.
+<p align="center">简体中文 | <a href="README.en.md">English</a></p>
 
 ## 特性
 
