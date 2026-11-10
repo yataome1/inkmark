@@ -1,6 +1,6 @@
 # Inkmark 示例文档
 
-欢迎使用 **Inkmark** —— 一个受 Typora 启发的本地 Markdown 编辑器。把光标移到任意元素上即可看到它的 Markdown 源码；按 `Ctrl+/` 切换到源代码模式。
+欢迎使用 **Inkmark** —— 一个本地 Markdown 编辑器。把光标移到任意元素上即可看到它的 Markdown 源码；按 `Ctrl+/` 切换到源代码模式。
 
 [TOC]
 

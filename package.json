@@ -1,9 +1,9 @@
 {
   "name": "inkmark",
   "productName": "Inkmark",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
-  "description": "A Typora-inspired local Markdown viewer & editor for Windows",
+  "description": "An offline-first local Markdown viewer & editor for Windows",
   "scripts": {
     "start": "tauri dev",
     "vendor": "node scripts/vendor.mjs",

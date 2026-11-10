@@ -17,4 +17,4 @@ body:
   - type: textarea
     id: alternatives
     attributes:
-      label: 其他方案 / 参考（如 Typora 对应功能）
+      label: 其他方案 / 参考（如其他编辑器的类似功能）
