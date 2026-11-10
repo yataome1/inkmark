@@ -87,9 +87,9 @@ npm run dist     # 构建安装包与免安装版
 ## 致谢
 
 - [leoshone](https://github.com/leoshone)
-- [CodeMirror 6](https://codemirror.net/)（MIT）—— 编辑内核
-- [markdown-it](https://github.com/markdown-it/markdown-it)（MIT）、[KaTeX](https://katex.org/)（MIT）、[Mermaid](https://mermaid.js.org/)（MIT）、[highlight.js](https://highlightjs.org/)（BSD-3-Clause）—— 导出与渲染
-- [Tauri](https://tauri.app/)（MIT / Apache-2.0）—— 桌面运行时
+- [CodeMirror 6](https://codemirror.net/)（MIT）
+- [markdown-it](https://github.com/markdown-it/markdown-it)（MIT）、[KaTeX](https://katex.org/)（MIT）、[Mermaid](https://mermaid.js.org/)（MIT）、[highlight.js](https://highlightjs.org/)（BSD-3-Clause）
+- [Tauri](https://tauri.app/)（MIT / Apache-2.0）
 - 设计灵感来自 [Typora](https://typora.io)。Inkmark 是独立的开源项目，与 Typora 无关。
 
 ## 许可证
