@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { countWords, parseHeadings } = require('../src/text-utils');
+const T = require('../src/text-utils');
+const { countWords, parseHeadings } = T;
 
 test('countWords: 中文按字、英文按词', () => {
   assert.deepEqual(countWords('你好 world'), { words: 3, chars: 7 });
@@ -39,4 +40,24 @@ test('parseHeadings: Setext 标题', () => {
 
 test('parseHeadings: 列表项后的 --- 不是 Setext 标题', () => {
   assert.deepEqual(parseHeadings('- item\n---'), []);
+});
+
+test('normalizeZoom / stepZoom: 一档 10%，范围 50%–300%，无效值为 1', () => {
+  assert.equal(T.stepZoom(1, 1), 1.1);
+  assert.equal(T.stepZoom(1.1, -1), 1);
+  assert.equal(T.stepZoom(3, 1), 3);
+  assert.equal(T.stepZoom(0.5, -1), 0.5);
+  assert.equal(T.normalizeZoom('1.3'), 1.3);
+  for (const bad of [undefined, null, 'x', -2, 0, NaN]) assert.equal(T.normalizeZoom(bad), 1);
+  assert.equal(T.normalizeZoom(9), 3);
+});
+
+test('applyEdits: 按位置替换，与顺序无关', () => {
+  const text = '![a](x.png) 和 ![b](y.png)';
+  const edits = [
+    { from: 5, to: 10, insert: 'file:///C:/i/1.png' },
+    { from: 19, to: 24, insert: 'b.assets/2.png' },
+  ];
+  assert.equal(T.applyEdits(text, edits), '![a](file:///C:/i/1.png) 和 ![b](b.assets/2.png)');
+  assert.equal(T.applyEdits(text, [...edits].reverse()), T.applyEdits(text, edits));
 });

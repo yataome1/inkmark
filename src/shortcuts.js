@@ -81,6 +81,7 @@
         { label: '专注模式', keys: 'F8' },
         { label: '打字机模式', keys: 'F9' },
         { label: '全屏', keys: 'F11' },
+        { label: '放大 / 缩小', keys: 'Ctrl+滚轮' },
         { label: '放大', keys: 'Ctrl+=' },
         { label: '缩小', keys: 'Ctrl+-' },
         { label: '实际大小', keys: 'Ctrl+Shift+9' },

@@ -42,8 +42,35 @@
     listDir: (dir) => invoke('list_dir', { dir }),
     pathInfo: (paths) => invoke('path_info', { paths }),
     setFavoriteMenu: (favorited, enabled) => invoke('set_favorite_menu', { favorited, enabled }),
-    saveImage: (docPath, name, bytes) => invoke('save_image', { docPath, name, bytes: Array.from(bytes) }),
-    saveImageFromPath: (docPath, srcPath) => invoke('save_image_from_path', { docPath, srcPath }),
+    saveImage: (name, bytes) => invoke('save_image', { name, bytes: Array.from(bytes) }),
+    saveImageFromPath: (srcPath) => invoke('save_image_from_path', { srcPath }),
+    resolveImage: (path) => invoke('resolve_image', { path }),
+    imageFolder: () => invoke('image_folder'),
+    setImageFolder: (path, copy) => invoke('set_image_folder', { path, copy }),
+    openImageFolder: () => invoke('open_image_folder'),
+    copyShareImages: (target, paths) => invoke('copy_share_images', { target, paths }),
+    importImages: (paths) => invoke('import_images', { paths }),
+    writeExport: (path, content) => invoke('export_html', { path, html: content }),
+    pickFolder: () => T.dialog.open({ directory: true }),
+    /** @returns {Promise<'copy'|'skip'|'cancel'>} */
+    async confirmCopyImages(count) {
+      const r = await askThree(
+        `原文件夹中的 ${count} 张图片会保留不删。复制后，旧文档中的图片在新位置也能找到。`,
+        '是否把已有图片复制到新位置？',
+        '复制',
+        '不复制',
+        '取消',
+      );
+      return { yes: 'copy', no: 'skip', cancel: 'cancel' }[r];
+    },
+    async confirmOverwrite(name) {
+      const r = await T.dialog.message(`“${name}”已存在，导出会覆盖其中的同名图片。`, {
+        title: '是否覆盖？',
+        kind: 'warning',
+        buttons: { ok: '覆盖', cancel: '取消' },
+      });
+      return r === '覆盖' || r === 'Ok';
+    },
     allowImage: (path) => invoke('allow_image', { path }),
     toAssetUrl: (path) => T.core.convertFileSrc(path),
     /** @returns {Promise<'save'|'discard'|'cancel'>} */

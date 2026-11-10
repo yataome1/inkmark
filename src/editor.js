@@ -19,6 +19,7 @@
     EditorSelection,
     ViewPlugin,
     syntaxTree,
+    ensureSyntaxTree,
     isolateHistory,
   } = CM;
 
@@ -279,6 +280,24 @@
       toggleSource() {
         current.source = !current.source;
         view.dispatch({ effects: mode.reconfigure(previewFor(current.source)) });
+      },
+      /** 整篇文档中 Markdown 图片的地址与位置（specs/011）：[{ from, to, src }] */
+      imageRefs() {
+        const { state } = view;
+        const tree = ensureSyntaxTree(state, state.doc.length, 5000) ?? syntaxTree(state);
+        const out = [];
+        tree.iterate({
+          enter(n) {
+            if (n.name !== 'Image') return;
+            const url = n.node.getChild('URL');
+            if (url) out.push({ from: url.from, to: url.to, src: state.sliceDoc(url.from, url.to).replace(/^<(.*)>$/, '$1') });
+          },
+        });
+        return out;
+      },
+      /** 一次替换多处，作为一步撤销 */
+      replaceRanges(edits) {
+        isolated(view, () => view.dispatch({ changes: edits }));
       },
       insert(text) {
         isolated(view, () => view.dispatch(view.state.replaceSelection(text), { scrollIntoView: true }));

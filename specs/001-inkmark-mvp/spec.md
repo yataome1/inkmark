@@ -86,7 +86,7 @@ Typora 的核心价值是“无干扰的所见即所得 Markdown 写作”：输
 - **FR-008** 专注模式 F8、打字机模式 F9、全屏 F11。
 - **FR-009** 状态栏字数与字符数。
 - **FR-010** 浅色 / 深色 / 跟随系统主题，持久化。
-- **FR-011** 图片粘贴/拖入保存到 `./assets/` 并插入相对路径；相对路径图片正确显示。
+- **FR-011** 图片粘贴/拖入保存到 `./assets/` 并插入相对路径；相对路径图片正确显示。（保存位置已由 [011](../011-images-zoom/spec.md) 的 FR-1101 取代：统一存入图片文件夹；相对路径图片仍正确显示。）
 - **FR-012** Typora 风格快捷键：`Ctrl+1..6` 标题、`Ctrl+0` 段落、`Ctrl+B` 粗体、`Ctrl+I` 斜体、`Ctrl+U` 下划线、`Alt+Shift+5` 删除线、``Ctrl+Shift+` `` 行内代码、`Ctrl+K` 链接、`Ctrl+Shift+Q` 引用、`Ctrl+Shift+[` 有序列表、`Ctrl+Shift+]` 无序列表、`Ctrl+Shift+X` 任务列表、`Ctrl+Shift+K` 代码块、`Ctrl+Shift+M` 公式块、`Ctrl+T` 表格、`Ctrl+Shift+-` 分隔线。
 - **FR-013** 查找（`Ctrl+F`）与替换（`Ctrl+H`，全部替换）。
 - **FR-014** 导出 HTML、PDF。

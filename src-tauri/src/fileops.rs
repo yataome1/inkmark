@@ -1,10 +1,10 @@
-//! 文件操作：读、原子写（宪章 IV）、目录列表、图片保存（FR-011）。
+//! 文件操作：读、原子写（宪章 IV）、目录列表、图片保存与查找（specs/011）。
 
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const MD_EXT: [&str; 4] = ["md", "markdown", "mdown", "txt"];
 const IMAGE_EXT: [&str; 7] = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"];
@@ -91,76 +91,158 @@ pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
     Ok(out)
 }
 
-/// 去掉文件名中的非法字符；剪贴板图片的通用名 image.png 加时间戳避免覆盖。
-fn sanitize(name: &str) -> String {
-    let mut out = String::new();
-    for c in name.chars() {
-        let bad = c.is_whitespace() || matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|');
-        if !bad {
-            out.push(c);
-        } else if !out.ends_with('-') {
-            out.push('-');
+// SHA-256 由 Windows CNG 计算，不引入依赖（specs/011 plan）
+#[link(name = "bcrypt")]
+unsafe extern "system" {
+    fn BCryptHash(
+        algorithm: usize,
+        secret: *const u8,
+        secret_len: u32,
+        input: *const u8,
+        input_len: u32,
+        output: *mut u8,
+        output_len: u32,
+    ) -> i32;
+}
+const BCRYPT_SHA256_ALG_HANDLE: usize = 0x41;
+
+pub fn sha256(bytes: &[u8]) -> io::Result<[u8; 32]> {
+    let len = u32::try_from(bytes.len()).map_err(|_| io::Error::other("图片过大"))?;
+    let mut out = [0u8; 32];
+    // SAFETY: 输入、输出指针与长度一致；SHA-256 伪句柄由系统提供，无需打开或释放
+    let status = unsafe {
+        BCryptHash(
+            BCRYPT_SHA256_ALG_HANDLE,
+            std::ptr::null(),
+            0,
+            bytes.as_ptr(),
+            len,
+            out.as_mut_ptr(),
+            32,
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::other(format!("计算哈希失败：{status:#x}")));
+    }
+    Ok(out)
+}
+
+/// 内容哈希名：SHA-256 前 128 位的十六进制 + 小写扩展名（FR-1102）
+pub fn hash_name(bytes: &[u8], ext: &str) -> io::Result<String> {
+    let hex: String = sha256(bytes)?[..16].iter().map(|b| format!("{b:02x}")).collect();
+    Ok(format!("{hex}.{}", ext.to_ascii_lowercase()))
+}
+
+pub fn is_hash_name(name: &str) -> bool {
+    name.split_once('.').is_some_and(|(stem, ext)| {
+        stem.len() == 32
+            && stem.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            && IMAGE_EXT.contains(&ext)
+    })
+}
+
+fn image_ext(name: &str) -> String {
+    Path::new(name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .filter(|e| IMAGE_EXT.contains(&e.as_str()))
+        .unwrap_or_else(|| "png".into())
+}
+
+/// 把图片按内容哈希保存到 dir（须已存在）；同内容的文件已存在时不再写入
+pub fn save_image(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+    let full = dir.join(hash_name(bytes, &image_ext(name))?);
+    if !full.exists() {
+        write_atomic(&full, bytes)?;
+    }
+    Ok(full)
+}
+
+/// 原路径存在则用原路径；否则内容哈希名的图片到 image_dir 中按文件名查找（FR-1104）
+pub fn resolve_image(path: &Path, image_dir: &Path) -> Option<PathBuf> {
+    if !is_image(path) {
+        return None;
+    }
+    if path.is_file() {
+        return Some(path.to_path_buf());
+    }
+    let name = path.file_name()?.to_str()?;
+    let candidate = image_dir.join(name);
+    (is_hash_name(name) && candidate.is_file()).then_some(candidate)
+}
+
+/// 复制 from 顶层的图片到 to；同名已存在则跳过。返回 (复制, 跳过)
+pub fn copy_images(from: &Path, to: &Path) -> io::Result<(usize, usize)> {
+    let (mut copied, mut skipped) = (0, 0);
+    if !from.is_dir() {
+        return Ok((0, 0));
+    }
+    for e in fs::read_dir(from)? {
+        let p = e?.path();
+        if !p.is_file() || !is_image(&p) {
+            continue;
+        }
+        let dest = to.join(p.file_name().unwrap_or_default());
+        if dest.exists() {
+            skipped += 1;
+        } else {
+            fs::copy(&p, &dest)?;
+            copied += 1;
         }
     }
-    if out.is_empty() || out == "-" {
-        out = "image.png".into();
-    }
-    let p = Path::new(&out);
-    if p.file_stem().is_some_and(|s| s.eq_ignore_ascii_case("image")) {
+    Ok((copied, skipped))
+}
+
+/// 导出可分享副本：复制到 dir 并返回文件名。dir 中已有的同名文件直接覆盖（用户已确认）；
+/// 同一次导出中同名但来源不同的图片加序号，同一来源只复制一次。
+pub fn copy_into(src: &Path, dir: &Path, used: &mut HashMap<String, PathBuf>) -> io::Result<String> {
+    let mut name = src
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if let Some(prev) = used.get(&name) {
+        if prev == src {
+            return Ok(name);
+        }
+        let p = Path::new(&name);
+        let stem = p
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let ext = p
             .extension()
-            .map(|e| e.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "png".into());
-        let ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(0);
-        out = format!("image-{ms}.{ext}");
+            .map(|e| format!(".{}", e.to_string_lossy()))
+            .unwrap_or_default();
+        name = (1..)
+            .map(|i| format!("{stem}-{i}{ext}"))
+            .find(|n| !used.contains_key(n))
+            .unwrap_or_default();
     }
-    out
+    fs::copy(src, dir.join(&name))?;
+    used.insert(name.clone(), src.to_path_buf());
+    Ok(name)
 }
 
-fn unique_name(dir: &Path, name: &str) -> String {
-    let p = Path::new(name);
-    let stem = p
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let ext = p
-        .extension()
-        .map(|e| format!(".{}", e.to_string_lossy()))
-        .unwrap_or_default();
-    let mut candidate = name.to_string();
-    let mut i = 1;
-    while dir.join(&candidate).exists() {
-        candidate = format!("{stem}-{i}{ext}");
-        i += 1;
-    }
-    candidate
+pub fn count_images(dir: &Path) -> usize {
+    fs::read_dir(dir).map_or(0, |entries| {
+        entries
+            .filter_map(Result::ok)
+            .filter(|e| e.path().is_file() && is_image(&e.path()))
+            .count()
+    })
 }
 
-/// 保存图片，返回插入 Markdown 的地址：
-/// 已保存的文档 → `assets/<文件名>`（相对路径）；未保存的文档 → 系统临时目录下文件的 `file:///` URL。
-pub fn save_image(
-    doc_path: Option<&Path>,
-    name: &str,
-    bytes: &[u8],
-    temp_root: &Path,
-) -> io::Result<(String, PathBuf)> {
-    let (dir, relative) = match doc_path.and_then(Path::parent) {
-        Some(doc_dir) => (doc_dir.join("assets"), true),
-        None => (temp_root.join("inkmark-images"), false),
-    };
-    fs::create_dir_all(&dir)?;
-    let file = unique_name(&dir, &sanitize(name));
-    let full = dir.join(&file);
-    fs::write(&full, bytes)?;
-    let src = if relative {
-        format!("assets/{file}")
-    } else {
-        file_url(&full)
-    };
-    Ok((src, full))
+/// URL 路径段转义（文件名中的空格、中文等）
+pub fn encode_segment(seg: &str) -> String {
+    seg.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
 }
 
 /// Windows 路径 → `file:///C:/a%20b/c.png`
@@ -171,14 +253,8 @@ pub fn file_url(p: &Path) -> String {
         if i > 0 {
             out.push('/');
         }
-        for b in seg.bytes() {
-            let keep = b.is_ascii_alphanumeric() || b"-._~".contains(&b) || (i == 0 && b == b':');
-            if keep {
-                out.push(b as char);
-            } else {
-                out.push_str(&format!("%{b:02X}"));
-            }
-        }
+        // 盘符中的冒号保留
+        out.push_str(&if i == 0 { seg.to_string() } else { encode_segment(seg) });
     }
     out
 }
@@ -259,29 +335,78 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_names() {
-        assert_eq!(sanitize("my photo?.png"), "my-photo-.png");
-        assert!(sanitize("image.png").starts_with("image-"));
-        assert!(sanitize("").ends_with(".png"));
+    fn sha256_matches_known_vector() {
+        let hex: String = sha256(b"abc").unwrap().iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     }
 
     #[test]
-    fn save_image_relative_to_document() {
+    fn save_image_names_by_content_and_dedupes() {
         let d = tmpdir("img");
-        let doc = d.join("note.md");
-        let (src1, _) = save_image(Some(&doc), "pic.png", b"1", &d).unwrap();
-        let (src2, full2) = save_image(Some(&doc), "pic.png", b"2", &d).unwrap();
-        assert_eq!(src1, "assets/pic.png");
-        assert_eq!(src2, "assets/pic-1.png");
-        assert_eq!(fs::read(full2).unwrap(), b"2");
+        let a = save_image(&d, "截图 1.PNG", b"same").unwrap();
+        let b = save_image(&d, "other.png", b"same").unwrap();
+        let c = save_image(&d, "x", b"different").unwrap();
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        let name = a.file_name().unwrap().to_str().unwrap();
+        assert!(is_hash_name(name) && name.ends_with(".png"), "{name}");
+        assert_eq!(fs::read_dir(&d).unwrap().count(), 2);
     }
 
     #[test]
-    fn save_image_untitled_uses_temp_file_url() {
-        let d = tmpdir("untitled");
-        let (src, full) = save_image(None, "pic.png", b"1", &d).unwrap();
-        assert!(src.starts_with("file:///"));
-        assert!(full.starts_with(d.join("inkmark-images")));
+    fn hash_name_rules() {
+        assert!(is_hash_name("0123456789abcdef0123456789abcdef.png"));
+        assert!(!is_hash_name("0123456789ABCDEF0123456789abcdef.png"));
+        assert!(!is_hash_name("0123456789abcdef.png"));
+        assert!(!is_hash_name("0123456789abcdef0123456789abcdef.txt"));
+        assert!(!is_hash_name("cat.png"));
+    }
+
+    #[test]
+    fn resolve_image_falls_back_only_for_hash_names() {
+        let d = tmpdir("resolve");
+        let lib = d.join("lib");
+        fs::create_dir_all(&lib).unwrap();
+        let saved = save_image(&lib, "p.png", b"pic").unwrap();
+        let name = saved.file_name().unwrap();
+        assert_eq!(resolve_image(&saved, &lib), Some(saved.clone()));
+        let moved = Path::new(r"C:Userssomeone-elseAppDataLocalinkmark-images").join(name);
+        assert_eq!(resolve_image(&moved, &lib), Some(lib.join(name)));
+        fs::write(lib.join("cat.png"), b"c").unwrap();
+        assert_eq!(
+            resolve_image(
+                Path::new(
+                    r"C:
+owherecat.png"
+                ),
+                &lib
+            ),
+            None
+        );
+        assert_eq!(resolve_image(&lib.join("a.md"), &lib), None);
+    }
+
+    #[test]
+    fn copy_helpers() {
+        let d = tmpdir("copy");
+        let (from, to) = (d.join("from"), d.join("to"));
+        fs::create_dir_all(&from).unwrap();
+        fs::create_dir_all(&to).unwrap();
+        fs::write(from.join("a.png"), b"a").unwrap();
+        fs::write(from.join("b.png"), b"b").unwrap();
+        fs::write(from.join("note.md"), b"x").unwrap();
+        fs::write(to.join("b.png"), b"old").unwrap();
+        assert_eq!(copy_images(&from, &to).unwrap(), (1, 1));
+        assert_eq!(fs::read(to.join("b.png")).unwrap(), b"old");
+        let mut used = HashMap::new();
+        assert_eq!(copy_into(&from.join("b.png"), &to, &mut used).unwrap(), "b.png");
+        assert_eq!(fs::read(to.join("b.png")).unwrap(), b"b", "已确认覆盖");
+        assert_eq!(copy_into(&from.join("b.png"), &to, &mut used).unwrap(), "b.png");
+        let other = d.join("other");
+        fs::create_dir_all(&other).unwrap();
+        fs::write(other.join("b.png"), b"other").unwrap();
+        assert_eq!(copy_into(&other.join("b.png"), &to, &mut used).unwrap(), "b-1.png");
+        assert_eq!(count_images(&to), 3);
     }
 
     #[test]

@@ -60,6 +60,13 @@
   }
 
   /** deps: { MarkdownIt, footnote, mark, taskLists, renderMath(source, display), highlight(code, lang) } */
+  /** 允许本地 file: 图片与链接；仍拒绝 javascript:、vbscript: 与非图片的 data: */
+  function validateLink(url) {
+    const u = url.trim().toLowerCase();
+    if (/^(javascript|vbscript):/.test(u)) return false;
+    return !u.startsWith('data:') || /^data:image\/(gif|png|jpeg|webp);/.test(u);
+  }
+
   function create({ MarkdownIt, footnote, mark, taskLists, renderMath, highlight }) {
     const md = new MarkdownIt({
       html: true,
@@ -73,6 +80,7 @@
       .use(footnote)
       .use(mark)
       .use(taskLists);
+    md.validateLink = validateLink;
     md.inline.ruler.after('escape', 'math_inline', mathInlineRule);
     md.block.ruler.before('fence', 'math_block', mathBlockRule, { alt: ['paragraph', 'blockquote', 'list'] });
     md.core.ruler.push('toc', tocRule);
@@ -86,7 +94,7 @@
     return (markdown) => md.render(markdown);
   }
 
-  const api = { create, mathInlineRule };
+  const api = { create, mathInlineRule, validateLink };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MarkdownHtml = api;
 })(this);

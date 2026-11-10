@@ -37,6 +37,7 @@
   function renderInline(text) {
     if (!inlineMarkdown) {
       inlineMarkdown = new CM.MarkdownIt({ html: false, linkify: false }).use(CM.markdownItMark);
+      inlineMarkdown.validateLink = MarkdownHtml.validateLink;
       inlineMarkdown.inline.ruler.after('escape', 'math_inline', MarkdownHtml.mathInlineRule);
       inlineMarkdown.renderer.rules.math_inline = (tokens, i) => katex.renderToString(tokens[i].content, { throwOnError: false });
     }

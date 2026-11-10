@@ -54,7 +54,27 @@
     return out;
   }
 
-  const api = { countWords, parseHeadings };
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 3;
+
+  /** 缩放比例：保留一位小数并限制在 50%–300%；无效值为 1（FR-1108） */
+  function normalizeZoom(value) {
+    const z = Number(value);
+    if (!Number.isFinite(z) || z <= 0) return 1;
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10) / 10));
+  }
+
+  /** 放大（direction = 1）或缩小（-1）一档 10%（FR-1107） */
+  const stepZoom = (zoom, direction) => normalizeZoom(zoom + direction * 0.1);
+
+  /** 按位置替换文本，edits 互不重叠：[{ from, to, insert }] */
+  function applyEdits(text, edits) {
+    let out = text;
+    for (const e of [...edits].sort((a, b) => b.from - a.from)) out = out.slice(0, e.from) + e.insert + out.slice(e.to);
+    return out;
+  }
+
+  const api = { countWords, parseHeadings, normalizeZoom, stepZoom, applyEdits };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TextUtils = api;
 })(this);

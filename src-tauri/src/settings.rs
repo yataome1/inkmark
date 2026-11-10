@@ -13,7 +13,7 @@ pub struct Settings {
 }
 
 fn defaults() -> Value {
-    json!({ "theme": "system", "recent": [], "sidebar": { "visible": true, "tab": "outline", "width": 260 }, "folder": null, "favorites": [], "tabs": { "paths": [], "active": 0 }, "restoreTabs": true })
+    json!({ "theme": "system", "recent": [], "sidebar": { "visible": true, "tab": "outline", "width": 260 }, "folder": null, "favorites": [], "tabs": { "paths": [], "active": 0 }, "restoreTabs": true, "imageFolder": null, "zoom": 1 })
 }
 
 impl Settings {
@@ -60,6 +60,11 @@ impl Settings {
 
     pub fn restore_tabs(&self) -> bool {
         self.value["restoreTabs"].as_bool().unwrap_or(true)
+    }
+
+    /// 用户设置的图片文件夹；None 表示默认位置（specs/011）
+    pub fn image_folder(&self) -> Option<String> {
+        self.value["imageFolder"].as_str().map(String::from)
     }
 
     pub fn theme(&self) -> &str {

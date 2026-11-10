@@ -83,8 +83,8 @@ pub fn sync<R: Runtime>(
         return Ok(());
     };
     let enabled = |id: &str| match id {
-        "save" | "save-as" | "close-tab" | "close-all" | "find" | "replace" | "source-mode" | "menu-export"
-        | "menu-paragraph" | "menu-format" => Some(tab.has_doc),
+        "save" | "save-as" | "import-images" | "close-tab" | "close-all" | "find" | "replace" | "source-mode"
+        | "menu-export" | "menu-paragraph" | "menu-format" => Some(tab.has_doc),
         "save-all" => Some(tab.any_dirty),
         "close-others" | "menu-tabs" => Some(tab.can_close_others),
         "reopen-tab" => Some(tab.can_reopen),
@@ -150,6 +150,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, sample: &str) -> tauri::Result<Menu
         .item(&recent_menu)
         .item(&MenuItemBuilder::with_id("toggle-favorite-current", "收藏当前文件").build(app)?)
         .item(&sep()?)
+        .item(&i("image-folder", "图片文件夹…", "")?)
+        .item(&i("import-images", "收入图片文件夹", "")?)
+        .item(&sep()?)
         .item(&i("save", "保存", "Ctrl+S")?)
         .item(&i("save-as", "另存为…", "Ctrl+Shift+S")?)
         .item(&i("save-all", "全部保存", "Ctrl+Alt+S")?)
@@ -164,6 +167,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, sample: &str) -> tauri::Result<Menu
             &SubmenuBuilder::with_id(app, "menu-export", "导出")
                 .item(&i("export-html", "HTML…", "")?)
                 .item(&i("export-pdf", "PDF…", "")?)
+                .item(&i("export-share", "可分享副本…", "")?)
                 .build()?,
         )
         .item(&sep()?)

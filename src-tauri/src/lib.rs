@@ -223,20 +223,48 @@ fn list_dir(dir: String) -> CmdResult<Vec<fileops::Entry>> {
     fileops::list_dir(Path::new(&dir)).map_err(err)
 }
 
-fn store_image(app: &AppHandle, doc_path: Option<String>, name: &str, bytes: &[u8]) -> CmdResult<String> {
-    let doc = doc_path.map(PathBuf::from);
-    let (src, full) = fileops::save_image(doc.as_deref(), name, bytes, &std::env::temp_dir()).map_err(err)?;
+// ---------------------------------------------------------------- 图片文件夹（specs/011）
+
+fn default_image_dir(app: &AppHandle) -> PathBuf {
+    app.path()
+        .local_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir())
+        .join("inkmark-images")
+}
+
+/// 当前图片文件夹与是否为默认位置
+fn image_dir(app: &AppHandle) -> (PathBuf, bool) {
+    let custom = app.state::<AppState>().settings.lock().unwrap().image_folder();
+    match custom {
+        Some(p) => (PathBuf::from(p), false),
+        None => (default_image_dir(app), true),
+    }
+}
+
+/// 保存图片前取得可用的文件夹：默认位置自动创建，用户设置的位置必须已存在
+fn usable_image_dir(app: &AppHandle) -> CmdResult<PathBuf> {
+    let (dir, default) = image_dir(app);
+    if default {
+        std::fs::create_dir_all(&dir).map_err(err)?;
+    } else if !dir.is_dir() {
+        return Err(format!("图片文件夹不可用：{}", dir.display()));
+    }
+    Ok(dir)
+}
+
+fn store_image(app: &AppHandle, name: &str, bytes: &[u8]) -> CmdResult<String> {
+    let full = fileops::save_image(&usable_image_dir(app)?, name, bytes).map_err(err)?;
     let _ = app.asset_protocol_scope().allow_file(&full);
-    Ok(src)
+    Ok(fileops::file_url(&full))
 }
 
 #[tauri::command]
-fn save_image(app: AppHandle, doc_path: Option<String>, name: String, bytes: Vec<u8>) -> CmdResult<String> {
-    store_image(&app, doc_path, &name, &bytes)
+fn save_image(app: AppHandle, name: String, bytes: Vec<u8>) -> CmdResult<String> {
+    store_image(&app, &name, &bytes)
 }
 
 #[tauri::command]
-fn save_image_from_path(app: AppHandle, doc_path: Option<String>, src_path: String) -> CmdResult<String> {
+fn save_image_from_path(app: AppHandle, src_path: String) -> CmdResult<String> {
     let src = Path::new(&src_path);
     if !fileops::is_image(src) {
         return Err("不是图片文件".into());
@@ -245,17 +273,151 @@ fn save_image_from_path(app: AppHandle, doc_path: Option<String>, src_path: Stri
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    store_image(&app, doc_path, &name, &std::fs::read(src).map_err(err)?)
+    store_image(&app, &name, &std::fs::read(src).map_err(err)?)
 }
 
-/// 文档中以绝对路径引用的本地图片：只允许图片扩展名。
+/// 文档中的本地图片：解析（含自动查找）后授权，返回实际路径。只接受图片扩展名。
 #[tauri::command]
-fn allow_image(app: AppHandle, path: String) -> CmdResult<()> {
-    let p = Path::new(&path);
-    if !fileops::is_image(p) {
-        return Err("不是图片文件".into());
+fn allow_image(app: AppHandle, path: String) -> CmdResult<String> {
+    let found = fileops::resolve_image(Path::new(&path), &image_dir(&app).0).ok_or("找不到图片")?;
+    app.asset_protocol_scope().allow_file(&found).map_err(err)?;
+    Ok(found.to_string_lossy().into_owned())
+}
+
+/// 只解析不授权：导出 HTML、PDF 时改写图片地址
+#[tauri::command]
+fn resolve_image(app: AppHandle, path: String) -> Option<String> {
+    fileops::resolve_image(Path::new(&path), &image_dir(&app).0).map(|p| p.to_string_lossy().into_owned())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageFolderInfo {
+    path: String,
+    is_default: bool,
+    exists: bool,
+    count: usize,
+}
+
+#[tauri::command]
+fn image_folder(app: AppHandle) -> ImageFolderInfo {
+    let (dir, is_default) = image_dir(&app);
+    ImageFolderInfo {
+        path: dir.to_string_lossy().into_owned(),
+        is_default,
+        exists: dir.is_dir(),
+        count: fileops::count_images(&dir),
     }
-    app.asset_protocol_scope().allow_file(p).map_err(err)
+}
+
+/// 更改图片文件夹；path 为 None 时恢复默认。可选复制已有图片，原文件不删（FR-1105）
+#[tauri::command]
+fn set_image_folder(app: AppHandle, path: Option<String>, copy: bool) -> CmdResult<(usize, usize)> {
+    let (old, _) = image_dir(&app);
+    let target = path.clone().map_or_else(|| default_image_dir(&app), PathBuf::from);
+    std::fs::create_dir_all(&target).map_err(err)?;
+    let probe = target.join(format!(".inkmark-write-test-{}", std::process::id()));
+    std::fs::write(&probe, b"").map_err(|e| format!("无法写入该文件夹：{e}"))?;
+    let _ = std::fs::remove_file(&probe);
+    let counts = if copy && old != target {
+        fileops::copy_images(&old, &target).map_err(err)?
+    } else {
+        (0, 0)
+    };
+    let mut patch = Map::new();
+    patch.insert("imageFolder".into(), json!(path));
+    app.state::<AppState>()
+        .settings
+        .lock()
+        .unwrap()
+        .update(patch)
+        .map_err(err)?;
+    let _ = app.asset_protocol_scope().allow_directory(&target, false);
+    Ok(counts)
+}
+
+#[tauri::command]
+fn open_image_folder(app: AppHandle) -> CmdResult<()> {
+    let dir = usable_image_dir(&app)?;
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(err)
+}
+
+/// 导出可分享副本：把图片复制到 <文件名>.assets，返回每项的相对地址；找不到的为 None（FR-1106）
+#[tauri::command]
+fn copy_share_images(app: AppHandle, target: String, paths: Vec<String>) -> CmdResult<Vec<Option<String>>> {
+    let target = Path::new(&target);
+    let stem = target
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let folder = format!("{stem}.assets");
+    let dir = target.parent().ok_or("无效的路径")?.join(&folder);
+    let lib = image_dir(&app).0;
+    let mut used = std::collections::HashMap::new();
+    let mut created = false;
+    let mut out = Vec::with_capacity(paths.len());
+    for p in paths {
+        let Some(src) = fileops::resolve_image(Path::new(&p), &lib) else {
+            out.push(None);
+            continue;
+        };
+        if !created {
+            std::fs::create_dir_all(&dir).map_err(err)?;
+            created = true;
+        }
+        let name = fileops::copy_into(&src, &dir, &mut used).map_err(err)?;
+        out.push(Some(format!(
+            "{}/{}",
+            fileops::encode_segment(&folder),
+            fileops::encode_segment(&name)
+        )));
+    }
+    Ok(out)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportResult {
+    /// same：已在图片文件夹；imported：已收入；exists：同内容已存在；missing：找不到
+    status: &'static str,
+    url: Option<String>,
+}
+
+/// 收入图片文件夹：按内容哈希复制，返回新地址（FR-1110）
+#[tauri::command]
+fn import_images(app: AppHandle, paths: Vec<String>) -> CmdResult<Vec<ImportResult>> {
+    let lib = usable_image_dir(&app)?;
+    let mut out = Vec::with_capacity(paths.len());
+    for p in paths {
+        let Some(src) = fileops::resolve_image(Path::new(&p), &lib) else {
+            out.push(ImportResult {
+                status: "missing",
+                url: None,
+            });
+            continue;
+        };
+        if src.parent() == Some(lib.as_path()) {
+            out.push(ImportResult {
+                status: "same",
+                url: None,
+            });
+            continue;
+        }
+        let bytes = std::fs::read(&src).map_err(err)?;
+        let name = fileops::hash_name(
+            &bytes,
+            &src.extension().map(|e| e.to_string_lossy()).unwrap_or_default(),
+        )
+        .map_err(err)?;
+        let existed = lib.join(&name).exists();
+        let full = fileops::save_image(&lib, &src.to_string_lossy(), &bytes).map_err(err)?;
+        let _ = app.asset_protocol_scope().allow_file(&full);
+        out.push(ImportResult {
+            status: if existed { "exists" } else { "imported" },
+            url: Some(fileops::file_url(&full)),
+        });
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -337,6 +499,12 @@ pub fn run() {
             save_image,
             save_image_from_path,
             allow_image,
+            resolve_image,
+            image_folder,
+            set_image_folder,
+            open_image_folder,
+            copy_share_images,
+            import_images,
             get_settings,
             set_settings,
             export_html,
@@ -372,6 +540,10 @@ pub fn run() {
                 })
                 .build()?;
             app.set_menu(menu::build(app.handle(), &sample_path(app.handle()))?)?;
+            let (images, _) = image_dir(app.handle());
+            if images.is_dir() {
+                let _ = app.asset_protocol_scope().allow_directory(&images, false);
+            }
             refresh_menu(app.handle());
             Ok(())
         })

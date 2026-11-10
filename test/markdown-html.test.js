@@ -4,7 +4,7 @@ const MarkdownIt = require('markdown-it');
 const footnote = require('markdown-it-footnote');
 const mark = require('markdown-it-mark');
 const taskLists = require('markdown-it-task-lists');
-const { create } = require('../src/markdown-html');
+const { create, validateLink } = require('../src/markdown-html');
 
 const render = create({
   MarkdownIt: MarkdownIt.default || MarkdownIt,
@@ -51,4 +51,13 @@ test('[TOC] 由标题生成并可跳转', () => {
 
 test('源码换行显示为换行', () => {
   assert.match(render('a\nb'), /a<br>\s*b/);
+});
+
+test('validateLink: 允许本地 file: 图片，拒绝脚本协议（specs/011）', () => {
+  assert.equal(validateLink('file:///C:/Users/a/AppData/Local/inkmark-images/x.png'), true);
+  assert.equal(validateLink('assets/x.png'), true);
+  assert.equal(validateLink('javascript:alert(1)'), false);
+  assert.equal(validateLink(' VBScript:x'), false);
+  assert.equal(validateLink('data:text/html;base64,xx'), false);
+  assert.equal(validateLink('data:image/png;base64,xx'), true);
 });
