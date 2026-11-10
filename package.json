@@ -1,7 +1,7 @@
 {
   "name": "inkmark",
   "productName": "Inkmark",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "An offline-first local Markdown viewer & editor for Windows",
   "scripts": {
