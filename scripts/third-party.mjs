@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { choose, sourceUrl } from './license-policy.mjs';
 
 const TEXT_FILE = /^(licen[cs]e|copying|notice)/i;
 const STANDARD = path.join(path.dirname(fileURLToPath(import.meta.url)), 'license-texts');
@@ -77,6 +78,18 @@ export function writeThirdParty(root, outFile) {
   );
   const missing = all.filter((p) => !p.license || !p.texts.length).map((p) => `${p.source}:${p.name}@${p.version}`);
   if (missing.length) throw new Error(`缺少许可信息：\n${missing.join('\n')}`);
+  // specs/010：按允许列表选定许可，弱著佐权记录源码地址
+  const rejected = [];
+  for (const p of all) {
+    try {
+      const { chosen, weak } = choose(p.license);
+      p.chosen = chosen;
+      if (weak) p.sourceUrl = sourceUrl(p);
+    } catch {
+      rejected.push(`${p.source}:${p.name}@${p.version}  ${p.license}`);
+    }
+  }
+  if (rejected.length) throw new Error(`许可不在允许范围内（GPL 类或未知许可）：\n${rejected.join('\n')}`);
   const texts = [];
   const index = new Map();
   const packages = all.map((p) => ({

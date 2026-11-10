@@ -549,6 +549,12 @@ body.resizing {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.about-source {
+  margin: 8px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .about-shortcuts {
   columns: 2 280px;
   column-gap: 32px;

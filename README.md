@@ -2,14 +2,14 @@
 
 <h1 align="center">Inkmark</h1>
 
-<p align="center">受 <a href="https://typora.io">Typora</a> 启发的本地 Markdown 查看与编辑器 · Windows 11 x64</p>
+<p align="center">本地 Markdown 查看与编辑器 · Windows 11 x64</p>
 
 <p align="center">
   <a href="https://github.com/yataome1/inkmark/actions/workflows/ci.yml"><img src="https://github.com/yataome1/inkmark/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
 </p>
 
-> A Typora-inspired, offline-first Markdown viewer & editor for Windows. Live preview editing, outline & file tree, focus/typewriter modes, math, diagrams, and HTML/PDF export.
+> An offline-first Markdown viewer & editor for Windows. Live preview editing, outline & file tree, focus/typewriter modes, math, diagrams, and HTML/PDF export.
 
 ## 特性
 

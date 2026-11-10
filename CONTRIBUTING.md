@@ -42,6 +42,13 @@ npm start
 3. 规格通过后补充 `plan.md`、`tasks.md`，再实现。
 4. PR 需通过 CI，并附上 `checklist.md` 验证结果。
 
+## 授权与 DCO
+
+- 你提交的代码、文档和素材按本项目的 [MIT 许可证](LICENSE) 提供。
+- 每个提交须带 `Signed-off-by`，表示你同意 [开发者原创声明（DCO 1.1）](https://developercertificate.org/)：你有权按上述许可提交这些内容。用 `git commit -s` 自动添加。
+- 不要提交来源不明、或许可与 MIT 不兼容的代码、字体、图片等内容；引入第三方内容时在 PR 中说明来源与许可。
+- 新增依赖的许可须在允许范围内，否则 `npm run vendor` 会失败（见 `scripts/license-policy.mjs`）。
+
 ## 报告问题
 
 使用 Issue 模板，提供 Inkmark 版本、Windows 版本、复现步骤，最好附上能复现问题的最小 Markdown 文件。

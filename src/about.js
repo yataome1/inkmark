@@ -69,7 +69,7 @@
       icon.src = 'vendor/icon.png';
       icon.alt = '';
       const names = el('div');
-      names.append(el('div', 'about-name', 'Inkmark'), el('div', 'about-muted', '受 Typora 启发的本地 Markdown 查看与编辑器'));
+      names.append(el('div', 'about-name', 'Inkmark'), el('div', 'about-muted', '本地 Markdown 查看与编辑器'));
       hero.append(icon, names);
 
       const versions = el('section', 'about-versions');
@@ -77,7 +77,7 @@
       const links = el('section', 'about-links');
       links.append(...LINKS.map(([kind, label]) => button(label, () => openLink(kind), 'about-link')));
       const legal = el('section', 'about-legal');
-      legal.append(el('div', '', COPYRIGHT));
+      legal.append(el('div', '', COPYRIGHT), el('div', 'about-muted', '本软件按“原样”提供，不附带任何明示或暗示的担保，详见 MIT 许可证。'));
       const licenses = el('div', 'about-links');
       licenses.append(
         button('MIT 许可证', showLicense, 'about-link'),
@@ -129,17 +129,27 @@
       thirdParty ??= await fetch('vendor/third-party.json').then((r) => r.json());
       if (id !== token) return;
       const { packages, texts } = thirdParty;
-      body.append(el('p', 'about-muted', `本软件包含以下 ${packages.length} 个开源组件。`));
+      body.append(
+        el(
+          'p',
+          'about-muted',
+          `本软件包含以下 ${packages.length} 个开源组件，均未经修改。多选一许可的组件注明所选许可；MPL-2.0、EPL-2.0 组件的源码可从所列地址获取。`,
+        ),
+      );
       for (const p of packages) {
         const details = el('details', 'about-package');
         const summary = el('summary', '');
-        summary.append(el('span', 'about-package-name', `${p.name} ${p.version}`), el('span', 'about-muted', p.license));
+        const license = p.chosen === p.license ? p.license : `${p.license}，选用 ${p.chosen}`;
+        summary.append(el('span', 'about-package-name', `${p.name} ${p.version}`), el('span', 'about-muted', license));
         details.append(summary);
         // 原文展开时才创建，组件很多
         details.addEventListener(
           'toggle',
           () => {
-            if (details.open && details.children.length === 1) details.append(...p.texts.map((i) => el('pre', 'about-text', texts[i])));
+            if (details.open && details.children.length === 1) {
+              if (p.sourceUrl) details.append(el('p', 'about-source', `源码：${p.sourceUrl}`));
+              details.append(...p.texts.map((i) => el('pre', 'about-text', texts[i])));
+            }
           },
           { once: true },
         );
