@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-10
+
 实现规格 [011-images-zoom](specs/011-images-zoom/spec.md)、[012-image-menu](specs/012-image-menu/spec.md)。
 
 ### 新增
