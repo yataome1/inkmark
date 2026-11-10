@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder */
+/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu */
 'use strict';
 
 const api = window.inkmark;
@@ -964,6 +964,12 @@ const DOCUMENT_COMMANDS = new Set([
 const about = About.create({ dialog: $('#about'), appInfo: api.appInfo, openLink: api.openLink });
 const imageFolder = ImageFolder.create({ dialog: $('#image-folder'), api, onStatus: (text) => ($('#status-flags').textContent = text) });
 const dialogOpen = () => !!document.querySelector('dialog[open]');
+ImageMenu.attach({
+  host: editorEl,
+  api,
+  docDir: () => (state.path ? dirname(state.path) : null),
+  onStatus: (text) => ($('#status-flags').textContent = text),
+});
 
 function run(cmd, arg) {
   if (!editor || dialogOpen()) return;

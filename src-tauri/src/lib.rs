@@ -1,5 +1,6 @@
 //! Inkmark 后端：窗口、单实例、菜单、文件与设置命令（specs/002-tauri-migration/plan.md）。
 
+mod clipboard;
 mod fileops;
 mod menu;
 mod pdf;
@@ -140,8 +141,8 @@ fn sample_doc(app: AppHandle) -> String {
 #[tauri::command]
 fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
     let p = Path::new(&path);
-    if !fileops::is_markdown(p) || !p.is_file() {
-        return Err("不是 Markdown 文件".into());
+    if !(fileops::is_markdown(p) || fileops::is_image(p)) || !p.is_file() {
+        return Err("不是 Markdown 或图片文件".into());
     }
     app.opener().reveal_item_in_dir(p).map_err(err)
 }
@@ -288,6 +289,50 @@ fn allow_image(app: AppHandle, path: String) -> CmdResult<String> {
 #[tauri::command]
 fn resolve_image(app: AppHandle, path: String) -> Option<String> {
     fileops::resolve_image(Path::new(&path), &image_dir(&app).0).map(|p| p.to_string_lossy().into_owned())
+}
+
+// ---------------------------------------------------------------- 图片右键菜单（specs/012）
+
+/// 解析为实际存在的图片文件（含 011 的自动查找），否则报错（FR-1203）
+fn found_image(app: &AppHandle, path: &str) -> CmdResult<PathBuf> {
+    fileops::resolve_image(Path::new(path), &image_dir(app).0).ok_or_else(|| "找不到图片".to_string())
+}
+
+/// 读取图片原始字节，前端转为 PNG 写入剪贴板
+#[tauri::command]
+fn read_image(app: AppHandle, path: String) -> CmdResult<tauri::ipc::Response> {
+    let bytes = std::fs::read(found_image(&app, &path)?).map_err(err)?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// 把图片文件本身放入剪贴板（复制图片文件）
+#[tauri::command]
+fn copy_image_file(app: AppHandle, window: tauri::WebviewWindow, path: String) -> CmdResult<()> {
+    let file = found_image(&app, &path)?;
+    let owner = window.hwnd().map_err(err)?;
+    clipboard::put_files(owner.0.cast(), &[&file])
+}
+
+/// 图片另存为：只写入图片扩展名的目标；与原图相同时不操作
+#[tauri::command]
+fn save_image_as(app: AppHandle, src: String, dest: String) -> CmdResult<()> {
+    let from = found_image(&app, &src)?;
+    let to = PathBuf::from(dest);
+    if !fileops::is_image(&to) {
+        return Err("目标不是图片文件".into());
+    }
+    if to.exists() && std::fs::canonicalize(&from).ok() == std::fs::canonicalize(&to).ok() {
+        return Ok(());
+    }
+    std::fs::copy(&from, &to).map(|_| ()).map_err(err)
+}
+
+#[tauri::command]
+fn open_image(app: AppHandle, path: String) -> CmdResult<()> {
+    let file = found_image(&app, &path)?;
+    app.opener()
+        .open_path(file.to_string_lossy(), None::<&str>)
+        .map_err(err)
 }
 
 #[derive(Serialize)]
@@ -505,6 +550,10 @@ pub fn run() {
             open_image_folder,
             copy_share_images,
             import_images,
+            read_image,
+            copy_image_file,
+            save_image_as,
+            open_image,
             get_settings,
             set_settings,
             export_html,

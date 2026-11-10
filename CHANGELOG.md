@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-实现规格 [011-images-zoom](specs/011-images-zoom/spec.md)。
+实现规格 [011-images-zoom](specs/011-images-zoom/spec.md)、[012-image-menu](specs/012-image-menu/spec.md)。
 
 ### 新增
 
@@ -13,6 +13,7 @@
 - 导出可分享副本：文档与图片一起导出，图片放在旁边的 `文件名.assets` 中
 - 收入图片文件夹：把文档旁边的图片收入图片文件夹，可一步撤销
 - `Ctrl+滚轮` 缩放；缩放比例在重启后保留
+- 编辑区图片的右键菜单：复制图片、复制图片文件、图片另存为、复制图片地址、在资源管理器中显示、用默认程序打开（[012](specs/012-image-menu/spec.md)），取代浏览器内核的默认菜单
 
 ### 变更
 
