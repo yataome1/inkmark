@@ -1,5 +1,6 @@
 //! Inkmark 后端：窗口、单实例、菜单、文件与设置命令（specs/002-tauri-migration/plan.md）。
 
+mod bundled;
 mod clipboard;
 mod fileops;
 mod menu;
@@ -46,11 +47,12 @@ fn files_from_args(args: &[String], cwd: &Path) -> Vec<String> {
         .collect()
 }
 
-fn sample_path(app: &AppHandle) -> String {
+/// 内置文档的释放位置；随卸载时“删除应用程序数据”一并清除（specs/013 FR-1302）
+fn help_dir(app: &AppHandle) -> PathBuf {
     app.path()
-        .resource_dir()
-        .map(|d| d.join("samples").join("demo.md").to_string_lossy().into_owned())
-        .unwrap_or_default()
+        .app_local_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir())
+        .join("help")
 }
 
 fn refresh_menu(app: &AppHandle) {
@@ -71,8 +73,11 @@ fn allow_doc_dir(app: &AppHandle, doc: &Path) {
     }
 }
 
+/// 内置文档不进入“最近打开”（FR-1305）
 fn remember(app: &AppHandle, state: &State<AppState>, p: &Path) {
-    let _ = state.settings.lock().unwrap().add_recent(&p.to_string_lossy());
+    if !bundled::contains(&help_dir(app), p) {
+        let _ = state.settings.lock().unwrap().add_recent(&p.to_string_lossy());
+    }
     allow_doc_dir(app, p);
     refresh_menu(app);
 }
@@ -132,9 +137,16 @@ fn set_tab_menu(app: AppHandle, state: State<AppState>, tab_menu: menu::TabMenu)
     }
 }
 
+/// 释放并读取使用指南（guide）或示例文档（demo）；不加入最近打开（specs/013）
 #[tauri::command]
-fn sample_doc(app: AppHandle) -> String {
-    sample_path(&app)
+fn open_bundled(app: AppHandle, name: String) -> CmdResult<Doc> {
+    let dir = help_dir(&app);
+    let (path, content) = bundled::extract(&dir, &name, &app.package_info().version.to_string()).map_err(err)?;
+    let _ = app.asset_protocol_scope().allow_directory(&dir, true);
+    Ok(Doc {
+        path: path.to_string_lossy().into_owned(),
+        content,
+    })
 }
 
 /// 只允许已存在的 Markdown 文件，不能借此打开任意路径（宪章 V）。
@@ -537,7 +549,7 @@ pub fn run() {
             path_info,
             set_favorite_menu,
             set_tab_menu,
-            sample_doc,
+            open_bundled,
             reveal_path,
             app_info,
             open_link,
@@ -588,7 +600,7 @@ pub fn run() {
                     internal
                 })
                 .build()?;
-            app.set_menu(menu::build(app.handle(), &sample_path(app.handle()))?)?;
+            app.set_menu(menu::build(app.handle())?)?;
             let (images, _) = image_dir(app.handle());
             if images.is_dir() {
                 let _ = app.asset_protocol_scope().allow_directory(&images, false);

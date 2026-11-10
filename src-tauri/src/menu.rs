@@ -136,7 +136,7 @@ pub fn sync<R: Runtime>(
 }
 
 /// 启动时创建一次；状态由随后的 `sync` 填入。
-pub fn build<R: Runtime>(app: &AppHandle<R>, sample: &str) -> tauri::Result<Menu<R>> {
+pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let i = |id: &str, label: &str, shortcut: &str| item(app, id, label, shortcut);
     let sep = || PredefinedMenuItem::separator(app);
 
@@ -256,7 +256,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, sample: &str) -> tauri::Result<Menu
     }
 
     let help = SubmenuBuilder::new(app, "帮助(&H)")
-        .item(&i(&format!("open-path:{sample}"), "Markdown 示例文档", "")?)
+        .item(&i("open-bundled:guide", "使用指南", "")?)
+        .item(&i("open-bundled:demo", "Markdown 示例文档", "")?)
         .item(&i("shortcuts", "键盘快捷键", "F1")?)
         .item(&sep()?)
         .item(&i("link:changelog", "更新日志", "")?)

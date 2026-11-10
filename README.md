@@ -68,7 +68,7 @@ npm run dist     # 构建安装包与免安装版
 ├── .specify/                SDD：项目宪章与规格模板
 ├── specs/                   SDD：每个特性的 spec / plan / research / tasks / checklist
 ├── scripts/                 构建脚本（生成 src/vendor 中的第三方资源）
-├── resources/samples/       随应用分发的示例文档
+├── resources/samples/       编进程序的使用指南与示例文档
 ├── src/                     前端：界面与编辑器（CodeMirror 6），platform.js 为唯一的系统接口
 ├── src-tauri/               后端（Rust）：窗口、菜单、文件、设置、导出 PDF；权限配置与图标
 ├── test/                    前端单元测试（node --test）

@@ -227,8 +227,10 @@
       box.type = 'checkbox';
       box.className = 'im-check';
       box.checked = this.checked;
+      box.disabled = view.state.readOnly;
       box.addEventListener('mousedown', (e) => {
         e.preventDefault();
+        if (view.state.readOnly) return;
         const pos = view.posAtDOM(box) + 1;
         view.dispatch({ changes: { from: pos, to: pos + 1, insert: this.checked ? ' ' : 'x' } });
       });
@@ -460,7 +462,7 @@
           td.dataset.c = c;
           tr.append(td);
           if (cells[c]) {
-            td.contentEditable = 'plaintext-only';
+            td.contentEditable = view.state.readOnly ? 'false' : 'plaintext-only';
             paintCell(td, cells[c]);
           }
         }
