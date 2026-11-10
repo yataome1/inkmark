@@ -40,23 +40,15 @@
 
 ## 快捷键
 
-| 操作 | 快捷键 | 操作 | 快捷键 |
-|---|---|---|---|
-| 新建 / 打开 / 保存 | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` | 另存为 | `Ctrl+Shift+S` |
-| 打开文件夹 | `Ctrl+Shift+O` | 源代码模式 | `Ctrl+/` |
-| 1–6 级标题 / 段落 | `Ctrl+1…6` / `Ctrl+0` | 侧边栏 | `Ctrl+Shift+L` |
-| 加粗 / 斜体 / 下划线 | `Ctrl+B` / `Ctrl+I` / `Ctrl+U` | 大纲 / 收藏 / 文件树 | `Ctrl+Shift+1` / `Ctrl+Shift+2` / `Ctrl+Shift+3` |
-| 删除线 | `Alt+Shift+5` | 专注 / 打字机 | `F8` / `F9` |
-| 行内代码 | ``Ctrl+Shift+` `` | 全屏 | `F11` |
-| 超链接 | `Ctrl+K` | 查找 / 替换 | `Ctrl+F` / `Ctrl+H` |
-| 引用 | `Ctrl+Shift+Q` | 表格 | `Ctrl+T` |
-| 有序 / 无序列表 | `Ctrl+Shift+[` / `Ctrl+Shift+]` | 代码块 / 公式块 | `Ctrl+Shift+K` / `Ctrl+Shift+M` |
-| 任务列表 | `Ctrl+Shift+X` | 分割线 | `Ctrl+Shift+-` |
-| 放大 / 缩小 | `Ctrl+=` / `Ctrl+-` | 实际大小 | `Ctrl+Shift+9` |
-| 关闭标签 | `Ctrl+W` | 全部保存 | `Ctrl+Alt+S` |
-| 重新打开关闭的标签 | `Ctrl+Shift+T` | 跳到第 N 个 / 最后一个标签 | `Alt+1…8` / `Alt+9` |
-| 下一个 / 上一个标签 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 移动标签 | `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp` |
-| 键盘快捷键列表 | `F1` | | |
+常用快捷键如下，按  可在软件中查看全部快捷键。
+
+| 操作 | 快捷键 |
+|---|---|
+| 新建 / 打开 / 保存 |  /  /  |
+| 源代码模式 |  |
+| 查找 / 替换 |  /  |
+| 关闭标签 / 切换标签 |  /  |
+| 全部快捷键 |  |
 
 ## 从源码构建
 
