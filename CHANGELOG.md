@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-10
+
 实现规格 [013-user-guide](specs/013-user-guide/spec.md)。
 
 ### 新增
