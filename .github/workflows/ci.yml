@@ -68,7 +68,7 @@ jobs:
             "{0}: {1:N2} MB" -f $f.Name, ($f.Length / 1MB)
             if ($f.Length -gt $limits[$f.Name]) { throw "$($f.Name) 超过体积上限" }
           }
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: out/*.exe
           generate_release_notes: true
