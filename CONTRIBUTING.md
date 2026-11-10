@@ -25,7 +25,7 @@ npm start
 
 | 命令 | 作用 |
 |---|---|
-| `npm start` | 以开发模式启动（`tauri dev`，自动复制 Vditor 资源） |
+| `npm start` | 以开发模式启动（`tauri dev`，自动生成 `src/vendor` 中的第三方资源与第三方声明） |
 | `npm test` | 前端单元测试 |
 | `npm run lint` | ESLint + Prettier 检查 |
 | `npm run format` | 自动格式化前端代码 |
