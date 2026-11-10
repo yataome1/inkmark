@@ -102,7 +102,7 @@
       return { yes: 'retry', no: 'switch', cancel: 'cancel' }[r];
     },
     setTabMenu: (tabMenu) => invoke('set_tab_menu', { tabMenu }),
-    sampleDoc: () => invoke('sample_doc'),
+    openBundled: (name) => invoke('open_bundled', { name }),
     revealPath: (path) => invoke('reveal_path', { path }),
     appInfo: () => invoke('app_info'),
     openLink: (kind) => invoke('open_link', { kind }),

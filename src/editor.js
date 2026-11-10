@@ -185,10 +185,12 @@
     let typewriterOn = false;
     const isDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 
-    const newState = (doc) =>
+    const newState = (doc, readOnly) =>
       EditorState.create({
         doc,
         extensions: [
+          // 只读文档（specs/013 FR-1304）：changeFilter 兜底拦截菜单命令等直接派发的修改
+          readOnly ? [EditorState.readOnly.of(true), EditorState.changeFilter.of(() => false)] : [],
           history({ newGroupDelay: 500 }), // FR-603
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           markdown({ base: markdownLanguage, extensions: LivePreview.syntax }),
@@ -215,8 +217,8 @@
       });
 
     /** 一个标签的编辑进度：EditorState 含文档、选区和撤销历史（FR-803） */
-    function createDoc(text) {
-      const state = newState(text);
+    function createDoc(text, readOnly = false) {
+      const state = newState(text, readOnly);
       return { state, saved: state.doc, source: false, scroll: null, dark: isDark(), focusOn, typewriterOn };
     }
 
@@ -277,6 +279,7 @@
         doc.saved = docOf(doc);
       },
       isSource: () => current.source,
+      isReadOnly: () => view.state.readOnly,
       toggleSource() {
         current.source = !current.source;
         view.dispatch({ effects: mode.reconfigure(previewFor(current.source)) });

@@ -33,7 +33,7 @@ specs/<NNN>-<kebab-name>/
 | `src-tauri/capabilities/` | 前端权限 | 按最小权限逐项授予，禁止整体开放 `fs` 等插件 |
 | `src-tauri/icons/` | 应用图标 | 只保留 Windows 所需尺寸 |
 | `scripts/` | 构建脚本 | |
-| `resources/samples/` | 随安装包分发的示例文档 | |
+| `resources/samples/` | 编进程序的使用指南与示例文档（`src-tauri/src/bundled.rs`） | 增删文件须同步 `bundled.rs` 的清单（有测试检查）；功能变化时同步更新使用指南 |
 | `test/` | `node --test` 单元测试，文件名 `*.test.js`；Rust 单元测试写在各模块的 `#[cfg(test)]` 中 | |
 | `specs/` `.specify/` | SDD 文档与模板 | |
 | `.github/` | CI、Issue/PR 模板 | |

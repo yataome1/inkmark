@@ -26,7 +26,8 @@ let editor;
 
 const basename = (p) => p.split(/[\\/]/).pop();
 const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
-const tabTitle = (tab) => (tab.kind === 'start' ? '开始' : tab.path ? basename(tab.path) : `未命名-${tab.untitledNo}`);
+const tabTitle = (tab) =>
+  tab.kind === 'start' ? '开始' : tab.path ? `${basename(tab.path)}${tab.readOnly ? ' · 只读' : ''}` : `未命名-${tab.untitledNo}`;
 const docName = () => tabTitle(tabs.current);
 const isMarkdownPath = (p) => /\.(md|markdown|mdown|txt)$/i.test(p);
 
@@ -115,7 +116,8 @@ const startPage = StartPage.create({
     { icon: '↗', label: '打开文件…', shortcut: 'Ctrl+O', run: () => run('open') },
     { icon: '▸', label: '打开文件夹…', shortcut: 'Ctrl+Shift+O', run: () => run('open-folder') },
     ...(closedTabs.length ? [{ icon: '↺', label: '恢复关闭的标签', shortcut: 'Ctrl+Shift+T', run: () => run('reopen-tab') }] : []),
-    { icon: '?', label: '查看示例文档', run: async () => openPath(await api.sampleDoc()) },
+    { icon: '?', label: '使用指南', run: () => openBundled('guide') },
+    { icon: '¶', label: '查看示例文档', run: () => openBundled('demo') },
   ],
   recent: () => state.settings.recent,
   favorites: () => state.settings.favorites,
@@ -204,15 +206,19 @@ const startFields = () => ({
   dirty: false,
 });
 
-function docFields(doc) {
+/** bundled 为内置的使用指南（'guide'，只读）或示例文档（'demo'）（specs/013） */
+function docFields(doc, bundled = null) {
   const { body, bom, eol } = DocFormat.split(doc ? doc.content : '');
+  const readOnly = bundled === 'guide';
   return {
     kind: 'doc',
     path: doc ? TabUtils.normalizePath(doc.path) : null,
     untitledNo: doc ? 0 : TabUtils.nextUntitled(tabs.list.map((t) => t.untitledNo)),
     format: { bom, eol },
-    doc: editor.createDoc(body),
+    doc: editor.createDoc(body, readOnly),
     dirty: false,
+    bundled,
+    readOnly,
   };
 }
 
@@ -230,7 +236,7 @@ function newTab() {
 }
 
 /** 在新标签中显示已读取的文档；已打开时切换到已有标签；唯一的空白标签被复用（FR-802） */
-function showDoc(doc, index) {
+function showDoc(doc, index, bundled = null) {
   const existing = tabs.find(TabUtils.pathKey(doc.path));
   if (existing) {
     showTab(existing);
@@ -239,12 +245,12 @@ function showDoc(doc, index) {
   }
   const only = tabs.list.length === 1 && tabs.list[0];
   if (only && (only.kind === 'start' || (!only.path && !editor.isDocDirty(only.doc)))) {
-    Object.assign(only, docFields(doc));
+    Object.assign(only, docFields(doc, bundled));
     tabs.render();
     showTab(only);
     return;
   }
-  const tab = docFields(doc);
+  const tab = docFields(doc, bundled);
   tabs.insert(tab, index);
   showTab(tab);
 }
@@ -252,7 +258,8 @@ function showDoc(doc, index) {
 /** 让用户选择另存为路径；目标已在其他标签打开时不写入（FR-802、边界情况） */
 async function askSavePath(tab) {
   for (;;) {
-    const p = await api.askSavePath(tab.path || `${tabTitle(tab)}.md`);
+    // 内置文档默认只给文件名，不把用户带到程序数据目录
+    const p = await api.askSavePath(tab.path && !tab.bundled ? tab.path : tab.path ? basename(tab.path) : `${tabTitle(tab)}.md`);
     if (!p) return null;
     const other = tabs.find(TabUtils.pathKey(p));
     if (!other || other === tab) return p;
@@ -281,6 +288,16 @@ async function saveTab(tab, as = false) {
   }
   if (path !== tab.path) {
     tab.path = TabUtils.normalizePath(path);
+    if (tab.readOnly) {
+      // 另存出的副本可以编辑（规格边界情况）
+      const copy = editor.createDoc(editor.docText(tab.doc));
+      copy.scroll = editor.view.scrollSnapshot();
+      tab.doc = copy;
+      tab.readOnly = false;
+      editor.activate(copy);
+      updateStatus();
+    }
+    tab.bundled = null;
     tabs.render();
     if (tab === tabs.current) highlightTreeCurrent();
   }
@@ -330,7 +347,9 @@ async function settleDirty(targets) {
 }
 
 function removeTabs(targets) {
-  for (const tab of targets) if (tab.path) closedTabs.push({ path: tab.path, index: tabs.list.indexOf(tab) });
+  for (const tab of targets) {
+    if (tab.path) closedTabs.push({ path: tab.path, index: tabs.list.indexOf(tab), bundled: tab.bundled });
+  }
   closedTabs.splice(0, closedTabs.length - MAX_CLOSED);
   let next = TabUtils.nextAfterClose(tabs.list, tabs.current, targets);
   if (!next) {
@@ -361,7 +380,7 @@ let sessionReady = false; // 恢复完成前不记录，避免启动时覆盖上
 
 async function writeSession() {
   if (!sessionReady) return;
-  const saved = tabs.list.filter((t) => t.path);
+  const saved = tabs.list.filter((t) => t.path && !t.bundled); // 内置文档不恢复（FR-1305）
   state.settings = await api.setSettings({
     tabs: { paths: saved.map((t) => t.path), active: Math.max(saved.indexOf(tabs.current), 0) },
   });
@@ -409,7 +428,7 @@ function gotoTab(n) {
 function reopenTab() {
   const item = closedTabs.pop();
   updateTabMenu();
-  if (item) openPath(item.path, item.index);
+  if (item) item.bundled ? openBundled(item.bundled, item.index) : openPath(item.path, item.index);
 }
 
 function showTabMenu(tab, x, y) {
@@ -451,6 +470,25 @@ async function readAndShow(p, index) {
     return;
   }
   showDoc(doc, index);
+}
+
+/** 使用指南与示例文档（specs/013）：每次打开都恢复为当前版本内容；指南已打开时只切换 */
+async function openBundled(name, index) {
+  const existing = tabs.list.find((t) => t.bundled === name);
+  if (existing && name === 'guide') return showTab(existing);
+  if (existing && !(await settleDirty([existing]))) return;
+  let doc;
+  try {
+    doc = await api.openBundled(name);
+  } catch (e) {
+    alert(`无法打开${name === 'guide' ? '使用指南' : '示例文档'}：
+${e}`);
+    return;
+  }
+  if (!existing) return showDoc(doc, index, name);
+  Object.assign(existing, docFields(doc, name));
+  tabs.render();
+  showTab(existing);
 }
 
 // 打开请求排队，连续打开多个文件时顺序不交错
@@ -506,7 +544,9 @@ async function setSidebar(patch) {
 
 function updateStatus() {
   $('#status-mode').textContent = isStart() ? '' : editor.isSource() ? '源代码模式' : '即时渲染';
-  $('#status-flags').textContent = [state.focus && '专注', state.typewriter && '打字机'].filter(Boolean).join(' · ');
+  $('#status-flags').textContent = [tabs.current?.readOnly && '只读', state.focus && '专注', state.typewriter && '打字机']
+    .filter(Boolean)
+    .join(' · ');
   editorEl.classList.toggle('focus-mode', state.focus);
   editorEl.classList.toggle('typewriter-mode', state.typewriter);
 }
@@ -864,6 +904,7 @@ const COMMANDS = {
     if (doc) showDoc(doc);
   },
   'open-path': openPath,
+  'open-bundled': (name) => openBundled(name),
   'open-folder': async () => {
     const folder = await api.openFolderDialog();
     if (!folder) return;
@@ -961,6 +1002,13 @@ const DOCUMENT_COMMANDS = new Set([
   'toggle-favorite-current',
 ]);
 
+// 只读的使用指南上会修改文档或写入图片的命令（specs/013 FR-1304）
+const READ_ONLY_BLOCKED = new Set(['import-images', 'save', 'replace', 'table', 'table-insert-row', 'table-delete-row']);
+
+function readOnlyHint() {
+  $('#status-flags').textContent = '使用指南为只读，可用“另存为”保存副本';
+}
+
 const about = About.create({ dialog: $('#about'), appInfo: api.appInfo, openLink: api.openLink });
 const imageFolder = ImageFolder.create({ dialog: $('#image-folder'), api, onStatus: (text) => ($('#status-flags').textContent = text) });
 const dialogOpen = () => !!document.querySelector('dialog[open]');
@@ -974,6 +1022,7 @@ ImageMenu.attach({
 function run(cmd, arg) {
   if (!editor || dialogOpen()) return;
   if (isStart() && (FORMAT[cmd] || DOCUMENT_COMMANDS.has(cmd))) return;
+  if (tabs.current.readOnly && (FORMAT[cmd] || READ_ONLY_BLOCKED.has(cmd))) return readOnlyHint();
   if (FORMAT[cmd]) {
     if (!modeElement().contains(getSelection().anchorNode)) editor.focus();
     FORMAT[cmd](arg);
@@ -1072,6 +1121,7 @@ api.onDragDrop(async ({ type, paths }) => {
   const docs = paths.filter(isMarkdownPath);
   if (docs.length) return Promise.all(docs.map((p) => openPath(p)));
   if (isStart()) return;
+  if (tabs.current.readOnly) return readOnlyHint();
   for (const p of paths.filter((x) => /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(x))) {
     if (!(await insertImage(() => api.saveImageFromPath(p), basename(p)))) break;
   }
@@ -1091,6 +1141,7 @@ async function insertImage(save, name) {
 }
 
 async function uploadImages(files) {
+  if (tabs.current.readOnly) return readOnlyHint();
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue;
     const bytes = new Uint8Array(await file.arrayBuffer());
