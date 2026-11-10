@@ -2,7 +2,7 @@
 
 <h1 align="center">Inkmark</h1>
 
-<p align="center">本地 Markdown 查看与编辑器 · Windows 11 x64</p>
+<p align="center">本地 Markdown 查看与编辑器 · Windows 10 / 11 x64</p>
 
 <p align="center">
   <a href="https://github.com/yataome1/inkmark/actions/workflows/ci.yml"><img src="https://github.com/yataome1/inkmark/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -35,7 +35,10 @@
 - `Inkmark-Setup-x.y.z-x64.exe` —— 安装版（注册 `.md` 文件关联）
 - `Inkmark-x.y.z-x64-portable.exe` —— 免安装版，单个文件，双击即用
 
-运行需要 WebView2：Windows 11 已内置；其他系统上安装版会自动引导下载。
+系统要求：
+
+- Windows 10、Windows 11 的 64 位版本（目前在 Windows 11 上测试）；不支持 Windows 7、8 和 32 位系统
+- WebView2 运行时：Windows 11 已内置，Windows 10 通常已随 Edge 安装；没有时安装版会自动引导下载
 
 > 安装包未做代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“仍要运行”即可。
 
