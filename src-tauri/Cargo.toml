@@ -1,6 +1,6 @@
 [package]
 name = "inkmark"
-version = "0.5.1"
+version = "0.5.2"
 description = "An offline-first local Markdown viewer & editor for Windows"
 authors = ["zhangmian"]
 license = "MIT"
