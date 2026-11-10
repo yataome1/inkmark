@@ -415,7 +415,8 @@ body.resizing {
   display: none;
 }
 /* ---------- 关于（specs/009） ---------- */
-#about {
+#about,
+#image-folder {
   width: min(720px, calc(100vw - 48px));
   max-height: min(640px, calc(100vh - 48px));
   padding: 0;
@@ -425,7 +426,8 @@ body.resizing {
   background: var(--bg);
   color: var(--fg);
 }
-#about::backdrop {
+#about::backdrop,
+#image-folder::backdrop {
   background: rgba(0, 0, 0, 0.35);
 }
 .about-frame {
@@ -575,7 +577,23 @@ body.resizing {
   font-family: var(--font-ui);
   font-size: 12px;
 }
-#about :is(button, summary):focus-visible {
+.image-folder-path {
+  margin: 12px 0 4px;
+  padding: 8px 12px;
+  border-radius: 5px;
+  background: var(--code-bg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.image-folder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+:is(#about, #image-folder) :is(button, summary):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
