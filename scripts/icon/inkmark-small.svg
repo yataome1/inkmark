@@ -1,26 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- 16–32px 版：与完整版元素相同（纸页、#、橙色光标、两行文字），纸页放大、线条加粗、去掉投影，以便小尺寸辨认 -->
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4C94FF"/>
-      <stop offset="1" stop-color="#2156DB"/>
-    </linearGradient>
-  </defs>
+  <!-- 16–32px 版：与完整版构图相同，描边与线条加粗，保证小尺寸下看得出轮廓和各元素 -->
   <g transform="scale(9.142857)">
-    <rect width="112" height="112" rx="22" fill="url(#bg)"/>
-    <path d="M28 12H74L94 32V92a8 8 0 0 1-8 8H28a8 8 0 0 1-8-8V20a8 8 0 0 1 8-8Z" fill="#FFFFFF"/>
-    <path d="M74 12V26a6 6 0 0 0 6 6H94Z" fill="#B8CFF7"/>
-    <g stroke="#2F6BEA" stroke-width="7" stroke-linecap="round">
-      <line x1="43" y1="38" x2="40" y2="66"/>
-      <line x1="56" y1="38" x2="53" y2="66"/>
-      <line x1="32" y1="47" x2="65" y2="47"/>
-      <line x1="31" y1="57" x2="64" y2="57"/>
+    <rect x="1.5" y="1.5" width="109" height="109" rx="22" fill="#FFFFFF" stroke="#C3CAD6" stroke-width="3"/>
+    <g stroke="#2F6BEA" stroke-width="8.5" stroke-linecap="round">
+      <line x1="44" y1="26" x2="41" y2="58"/>
+      <line x1="58" y1="26" x2="55" y2="58"/>
+      <line x1="31" y1="37" x2="67" y2="37"/>
+      <line x1="30" y1="49" x2="66" y2="49"/>
     </g>
-    <!-- 光标顶端（含圆头）在 y=34.5，低于折角下沿 y=32 -->
-    <line x1="77" y1="38" x2="77" y2="66" stroke="#FF9F0A" stroke-width="7" stroke-linecap="round"/>
-    <g stroke="#BFCBE1" stroke-width="7" stroke-linecap="round">
-      <line x1="32" y1="79" x2="82" y2="79"/>
-      <line x1="32" y1="91" x2="66" y2="91"/>
+    <line x1="80" y1="26" x2="80" y2="58" stroke="#FF9F0A" stroke-width="8.5" stroke-linecap="round"/>
+    <g stroke="#9DB7F2" stroke-width="8.5" stroke-linecap="round">
+      <line x1="30" y1="74" x2="84" y2="74"/>
+      <line x1="30" y1="88" x2="66" y2="88"/>
     </g>
   </g>
 </svg>
