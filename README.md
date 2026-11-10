@@ -86,6 +86,7 @@ npm run dist     # 构建安装包与免安装版
 
 ## 致谢
 
+- [leoshone](https://github.com/leoshone) —— 开发过程中提供了大量建议
 - [CodeMirror 6](https://codemirror.net/)（MIT）—— 编辑内核
 - [markdown-it](https://github.com/markdown-it/markdown-it)（MIT）、[KaTeX](https://katex.org/)（MIT）、[Mermaid](https://mermaid.js.org/)（MIT）、[highlight.js](https://highlightjs.org/)（BSD-3-Clause）—— 导出与渲染
 - [Tauri](https://tauri.app/)（MIT / Apache-2.0）—— 桌面运行时
