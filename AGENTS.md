@@ -31,7 +31,7 @@ specs/<NNN>-<kebab-name>/
 | `src/vendor/` | 构建时由 `npm run vendor` 生成的第三方资源（esbuild 打包的 CodeMirror 与 markdown-it，以及 KaTeX、Mermaid、highlight.js） | 不提交；需要新的第三方资源时修改 `scripts/vendor.mjs` 并说明体积影响 |
 | `src-tauri/src/` | Rust 后端 | 唯一可访问文件系统、对话框、原生菜单的位置；新增命令须同步更新 plan 的 IPC 契约表 |
 | `src-tauri/capabilities/` | 前端权限 | 按最小权限逐项授予，禁止整体开放 `fs` 等插件 |
-| `src-tauri/icons/` | 应用图标 | 只保留 Windows 所需尺寸 |
+| `src-tauri/icons/` | 应用图标 | 只保留 Windows 所需尺寸与 macOS 的 `icon.icns`，由 `scripts/icons.mjs` 生成 |
 | `scripts/` | 构建脚本 | |
 | `resources/samples/` | 编进程序的使用指南与示例文档（`src-tauri/src/bundled.rs`） | 增删文件须同步 `bundled.rs` 的清单（有测试检查）；功能变化时同步更新使用指南 |
 | `test/` | `node --test` 单元测试，文件名 `*.test.js`；Rust 单元测试写在各模块的 `#[cfg(test)]` 中 | |

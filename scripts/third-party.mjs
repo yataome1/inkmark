@@ -1,4 +1,5 @@
-// 生成第三方声明（specs/009 FR-905）：前端取 package-lock 的生产依赖，Rust 取 Windows x64 的 normal 依赖。
+// 生成第三方声明（specs/009 FR-905）：前端取 package-lock 的生产依赖，Rust 取当前构建平台的 normal 依赖
+// （Windows x64；macOS 通用包的两个架构依赖相同，取 Apple 芯片，specs/015 T1517）。
 // 缺少许可信息且不在例外表中时抛错，让 npm run vendor 失败。
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -17,6 +18,19 @@ const CARGO_TEXT = {
   'webview2-com': 'MIT',
   'webview2-com-macros': 'MIT',
   'webview2-com-sys': 'MIT',
+  // macOS（specs/015 T1517）：均为 MIT 或含 MIT 的多选一，取 MIT
+  block2: 'MIT',
+  dispatch2: 'MIT',
+  objc2: 'MIT',
+  'objc2-app-kit': 'MIT',
+  'objc2-core-foundation': 'MIT',
+  'objc2-core-graphics': 'MIT',
+  'objc2-encode': 'MIT',
+  'objc2-exception-helper': 'MIT',
+  'objc2-foundation': 'MIT',
+  'objc2-io-surface': 'MIT',
+  'objc2-quartz-core': 'MIT',
+  'objc2-web-kit': 'MIT',
 };
 
 function readTexts(dir) {
@@ -47,8 +61,10 @@ function npmPackages(root) {
     });
 }
 
+const TARGET = process.platform === 'darwin' ? 'aarch64-apple-darwin' : 'x86_64-pc-windows-msvc';
+
 function cargoPackages(root) {
-  const output = execSync('cargo metadata --format-version 1 --locked --filter-platform x86_64-pc-windows-msvc', {
+  const output = execSync(`cargo metadata --format-version 1 --locked --filter-platform ${TARGET}`, {
     cwd: path.join(root, 'src-tauri'),
     maxBuffer: 1 << 30,
     stdio: ['ignore', 'pipe', 'inherit'],

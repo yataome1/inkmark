@@ -14,7 +14,12 @@ env:
 
 jobs:
   check:
-    runs-on: windows-latest
+    # Windows 与 macOS 都必须通过（specs/015 NFR-1504）
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -72,3 +77,36 @@ jobs:
         with:
           files: out/*.exe
           generate_release_notes: true
+
+  release-mac:
+    # 在 Windows 发布之后运行，上传到同一个 Release，避免两个任务同时创建 Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run dist:mac
+      - name: 收集产物并检查体积（宪章 VII / NFR-1501）
+        run: |
+          v=$(node -p "require('./package.json').version")
+          mkdir -p out
+          cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg "out/Inkmark-$v-universal.dmg"
+          size=$(stat -f %z "out/Inkmark-$v-universal.dmg")
+          echo "Inkmark-$v-universal.dmg: $(echo "scale=2; $size/1048576" | bc) MB"
+          if [ "$size" -gt 10485760 ]; then echo "超过 10MB 体积上限"; exit 1; fi
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: out/*.dmg

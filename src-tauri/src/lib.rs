@@ -111,11 +111,18 @@ fn app_ready(state: State<AppState>) -> Ready {
 }
 
 /// 打开文件：前端未就绪时暂存，由 `app_ready` 返回；已就绪时显示窗口并发给前端（FR-002、FR-1503）
+/// 冷启动时 macOS 在 setup 之前就送来要打开的文件（访达双击、“打开方式”），此时还没有 AppState；
+/// 先放这里，setup 时并入 `initial_files`
+static EARLY_FILES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
 fn open_files(app: &AppHandle, files: Vec<String>) {
     if files.is_empty() {
         return;
     }
-    let state = app.state::<AppState>();
+    let Some(state) = app.try_state::<AppState>() else {
+        EARLY_FILES.lock().unwrap().extend(files);
+        return;
+    };
     let mut pending = state.initial_files.lock().unwrap();
     if let Some(list) = pending.as_mut() {
         list.extend(files);
@@ -600,7 +607,12 @@ pub fn run() {
             let cwd = std::env::current_dir().unwrap_or_default();
             app.manage(AppState {
                 settings: Mutex::new(settings),
-                initial_files: Mutex::new(Some(files_from_args(&args, &cwd))),
+                initial_files: Mutex::new(Some(
+                    files_from_args(&args, &cwd)
+                        .into_iter()
+                        .chain(std::mem::take(&mut *EARLY_FILES.lock().unwrap()))
+                        .collect(),
+                )),
                 favorite_menu: Mutex::new((false, false)),
                 tab_menu: Mutex::new(menu::TabMenu::default()),
             });

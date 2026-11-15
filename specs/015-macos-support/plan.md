@@ -169,6 +169,8 @@ macOS 上主窗口在程序运行期间一直存在，关闭只是隐藏，避�
   → 已就绪：显示并聚焦主窗口，emit open-file（与 Windows 的 single-instance 回调相同）
 ```
 
+冷启动时 macOS 在 setup 之前就送来 `Opened`（发布版实测：此时取 `AppState` 会 panic），这些文件先存入静态列表，setup 时并入 `initial_files`。
+
 `RunEvent` 在 `Builder::build()` 后的 `.run(|app, event| …)` 中处理，`Opened` 的 `file://` URL 用 `to_file_path()` 转换，复用 `files_from_args` 的“只保留存在的 Markdown 文件”过滤。
 
 ### 4. 路径（FR-1501，边界情况）
@@ -200,7 +202,7 @@ win.with_webview(move |wv| unsafe {
 
 ### 6. 构建与 CI
 
-- `tauri.conf.json`：`bundle.targets: "all"` 在 Windows 上只产出 nsis（与现在相同，CI 中核对），在 macOS 上产出 app 与 dmg；`bundle.macOS`：`minimumSystemVersion: "12.0"`，`signingIdentity: "-"`（ad-hoc 签名，Apple 芯片运行所需；不公证，spec 已确认）。
+- `tauri.conf.json`：`bundle.targets` 保持 `["nsis"]`（改为 `"all"` 会让 Windows 另外产出 msi，T1516 中发现），macOS 由 `npm run dist:mac` 以 `--bundles app,dmg` 指定；`bundle.macOS`：`minimumSystemVersion: "12.0"`，`signingIdentity: "-"`（ad-hoc 签名，Apple 芯片运行所需；不公证，spec 已确认）。
 - `npm run dist` 在 macOS 上执行 `tauri build --target universal-apple-darwin`（`package.json` 增加 `dist:mac`）。
 - CI：`check` 改为 `[windows-latest, macos-latest]` 矩阵；`release` 增加 macOS 任务产出 `Inkmark-x.y.z-universal.dmg`，体积 > 10MB 时失败，上传到同一个 Release。
 - `scripts/third-party.mjs` 当前固定 `--filter-platform x86_64-pc-windows-msvc` 生成第三方声明：改为按当前构建平台过滤（macOS 构建时包含 objc2 系列的许可，均为 MIT）。
@@ -226,5 +228,6 @@ win.with_webview(move |wv| unsafe {
 | 通用 `.dmg` 超过 10MB | CI 检查；超出时改为分别发布 arm64 与 x86_64 两个 `.dmg`（各约 4–5MB），需修改 NFR-1501 |
 | 不签名、不公证导致首次打开被拦截 | spec 已接受；README 与使用指南写明“系统设置 → 隐私与安全性 → 仍要打开”步骤并配图 |
 | macOS 上 `tauri dev` 由内置开发服务器（`http://127.0.0.1:1430`）提供页面，被 `on_navigation` 拦截，页面不加载 | 实现时发现：调试构建中放行该地址；发布构建仍只允许 `tauri://localhost` |
+| 打包 dmg 时 `hdiutil: create failed - Resource busy`（本机偶发，重试即成功） | CI 若遇到则重跑；频繁出现时在 release-mac 中加重试 |
 | 本机无法运行 Windows 的 clippy / test | CI 矩阵覆盖；本地只在 macOS 上运行 |
 | 无 Intel Mac 测试机 | 在 Apple 芯片 Mac 上用 `arch -x86_64` 经 Rosetta 运行通用包中的 x86_64 部分做冒烟测试；能借到 Intel Mac 时补一次完整 checklist，未做时在 checklist 中如实标注 |

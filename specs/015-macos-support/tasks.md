@@ -29,9 +29,9 @@
 
 ## 阶段 4：打包与 CI
 
-- [ ] T1516 [P] [US1] `scripts/icons.mjs` 生成 `icon.icns`；`tauri.conf.json` 的 `bundle.targets`、`bundle.macOS`（最低 12.0、ad-hoc 签名）、文件关联；`package.json` 增加 `dist:mac`
-- [ ] T1517 [P] `scripts/third-party.mjs` 按当前平台过滤 cargo 依赖
-- [ ] T1518 `.github/workflows/ci.yml`：check 改为 Windows + macOS 矩阵；release 增加通用 `.dmg`，体积 ≤ 10MB 检查，上传到同一 Release；核对 Windows 产物不变
+- [x] T1516 [P] [US1] `scripts/icons.mjs` 生成 `icon.icns`；`tauri.conf.json` 的 `bundle.icon`、`bundle.macOS`（最低 12.0、ad-hoc 签名）、文件关联；`package.json` 增加 `dist:mac`
+- [x] T1517 [P] `scripts/third-party.mjs` 按当前平台过滤 cargo 依赖
+- [x] T1518 `.github/workflows/ci.yml`：check 改为 Windows + macOS 矩阵；release 增加通用 `.dmg`，体积 ≤ 10MB 检查，上传到同一 Release；核对 Windows 产物不变（**待 CI 首次运行时核对**，配置中 Windows 部分未改）
 
 ## 阶段 5：文档与验证
 
