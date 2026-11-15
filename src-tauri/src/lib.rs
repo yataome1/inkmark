@@ -1,11 +1,12 @@
 //! Inkmark 后端：窗口、单实例、菜单、文件与设置命令（specs/002-tauri-migration/plan.md）。
 
 mod bundled;
-mod clipboard;
 mod fileops;
 mod menu;
 mod pdf;
 mod settings;
+mod sys;
+#[cfg(windows)]
 mod webview;
 
 use serde::Serialize;
@@ -168,49 +169,13 @@ struct AppInfo {
     windows: Option<String>,
 }
 
-#[repr(C)]
-struct OsVersionInfo {
-    size: u32,
-    major: u32,
-    minor: u32,
-    build: u32,
-    platform: u32,
-    service_pack: [u16; 128],
-}
-
-#[link(name = "ntdll")]
-unsafe extern "system" {
-    fn RtlGetVersion(info: *mut OsVersionInfo) -> i32;
-}
-
-fn windows_version() -> Option<String> {
-    let mut info = OsVersionInfo {
-        size: std::mem::size_of::<OsVersionInfo>() as u32,
-        major: 0,
-        minor: 0,
-        build: 0,
-        platform: 0,
-        service_pack: [0; 128],
-    };
-    // SAFETY: info 是按 OSVERSIONINFOW 布局初始化的有效结构，size 已设置
-    if unsafe { RtlGetVersion(&mut info) } != 0 {
-        return None;
-    }
-    let name = if info.build >= 22000 {
-        "11".to_string()
-    } else {
-        info.major.to_string()
-    };
-    Some(format!("Windows {name} (内部版本 {})", info.build))
-}
-
 #[tauri::command]
 fn app_info(app: AppHandle) -> AppInfo {
     AppInfo {
         version: app.package_info().version.to_string(),
         tauri: tauri::VERSION,
         webview2: tauri::webview_version().ok(),
-        windows: windows_version(),
+        windows: sys::os_version(),
     }
 }
 
@@ -322,8 +287,7 @@ fn read_image(app: AppHandle, path: String) -> CmdResult<tauri::ipc::Response> {
 #[tauri::command]
 fn copy_image_file(app: AppHandle, window: tauri::WebviewWindow, path: String) -> CmdResult<()> {
     let file = found_image(&app, &path)?;
-    let owner = window.hwnd().map_err(err)?;
-    clipboard::put_files(owner.0.cast(), &[&file])
+    sys::put_files(&window, &[&file])
 }
 
 /// 图片另存为：只写入图片扩展名的目标；与原图相同时不操作
@@ -587,6 +551,7 @@ pub fn run() {
             });
 
             let handle = app.handle().clone();
+            #[cfg_attr(not(windows), allow(unused_variables))]
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Inkmark")
                 .inner_size(1200.0, 800.0)
@@ -601,6 +566,7 @@ pub fn run() {
                     internal
                 })
                 .build()?;
+            #[cfg(windows)]
             webview::configure(&win);
             app.set_menu(menu::build(app.handle())?)?;
             let (images, _) = image_dir(app.handle());
