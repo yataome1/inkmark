@@ -36,7 +36,7 @@
 ## 阶段 5：文档与验证
 
 - [x] T1519 [P] [US1] 使用指南、README、README.en、CONTRIBUTING：macOS 系统要求、安装与首次放行步骤、快捷键差异、开发环境
-- [ ] T1520 `npm run lint`、`npm test`；macOS 上 `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`；Windows 由 CI 检查
+- [x] T1520 `npm run lint`、`npm test`；macOS 上 `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`；Windows 由 CI 检查（macOS 全部通过；Windows 待 CI）
 - [ ] T1521 按 spec 验收场景与 001–014 checklist 的 P1 场景在 macOS（Apple 芯片；Intel 经 Rosetta 冒烟）验证，记录于 `checklist.md`；Windows 回归
 - [ ] T1522 CHANGELOG；版本号 0.9.0
 
