@@ -1,4 +1,4 @@
-/* global PlatformKeys, Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu, EditMenu */
+/* global PlatformKeys, Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu, EditMenu, StatusMessage */
 'use strict';
 
 const api = window.inkmark;
@@ -327,7 +327,7 @@ async function saveAll() {
     busy = false;
   }
   if (finished && tabs.current !== origin) showTab(origin);
-  $('#status-flags').textContent = `已保存 ${saved} 个文件`;
+  showStatus(`已保存 ${saved} 个文件`);
 }
 
 /** 处理 targets 中未保存的修改，返回 true 表示可以关闭（宪章 IV、FR-806、FR-819） */
@@ -404,7 +404,7 @@ async function restoreSession() {
     try {
       Object.assign(tab, docFields(await api.readFile(tab.path)));
       showTab(tab);
-      if (skipped) $('#status-flags').textContent = `已跳过 ${skipped} 个不存在的文件`;
+      if (skipped) showStatus(`已跳过 ${skipped} 个不存在的文件`);
       return true;
     } catch {
       tabs.remove([tab]);
@@ -542,6 +542,13 @@ async function setSidebar(patch) {
   applySidebar();
 }
 
+// 一次性提示与持续状态分开显示，约 4 秒后消失（specs/016 FR-1601–FR-1604）
+const statusMessage = StatusMessage.create($('#status-message'));
+function showStatus(text) {
+  statusMessage.show(text);
+}
+
+/** 持续状态：只读、专注、打字机（FR-1603） */
 function updateStatus() {
   $('#status-mode').textContent = isStart() ? '' : editor.isSource() ? '源代码模式' : '即时渲染';
   $('#status-flags').textContent = [tabs.current?.readOnly && '只读', state.focus && '专注', state.typewriter && '打字机']
@@ -832,7 +839,7 @@ async function exportShareCopy() {
     const edits = refs.flatMap((r, i) => (results[i] ? [{ from: r.from, to: r.to, insert: results[i] }] : []));
     await api.writeExport(target, DocFormat.join(TextUtils.applyEdits(editor.getValue(), edits), state.format));
     const missing = refs.length - edits.length;
-    $('#status-flags').textContent = `已导出可分享副本，复制 ${edits.length} 张图片${missing ? `，${missing} 张找不到` : ''}`;
+    showStatus(`已导出可分享副本，复制 ${edits.length} 张图片${missing ? `，${missing} 张找不到` : ''}`);
   } catch (e) {
     alert(`导出失败：\n${e}`);
   }
@@ -851,14 +858,14 @@ async function importImages() {
   const count = (status) => results.filter((r) => r.status === status).length;
   const edits = refs.flatMap((r, i) => (results[i].url ? [{ from: r.from, to: r.to, insert: results[i].url }] : []));
   if (!edits.length) {
-    $('#status-flags').textContent = count('missing') ? `没有可收入的图片，${count('missing')} 张找不到` : '没有需要收入的图片';
+    showStatus(count('missing') ? `没有可收入的图片，${count('missing')} 张找不到` : '没有需要收入的图片');
     return;
   }
   editor.replaceRanges(edits);
   const parts = [`收入 ${count('imported')} 张图片`];
   if (count('exists')) parts.push(`${count('exists')} 张已存在`);
   if (count('missing')) parts.push(`${count('missing')} 张找不到`);
-  $('#status-flags').textContent = parts.join('，');
+  showStatus(parts.join('，'));
 }
 
 async function exportAs(kind) {
@@ -873,7 +880,7 @@ async function exportAs(kind) {
   } else {
     out = await api.exportHtml(await ExportHtml.buildHtml({ title: name, body }), defaultPath);
   }
-  if (out) $('#status-flags').textContent = `已导出：${out}`;
+  if (out) showStatus(`已导出：${out}`);
 }
 
 // ---------------------------------------------------------------- 命令表
@@ -1006,17 +1013,17 @@ const DOCUMENT_COMMANDS = new Set([
 const READ_ONLY_BLOCKED = new Set(['import-images', 'save', 'replace', 'table', 'table-insert-row', 'table-delete-row']);
 
 function readOnlyHint() {
-  $('#status-flags').textContent = '使用指南为只读，可用“另存为”保存副本';
+  showStatus('使用指南为只读，可用“另存为”保存副本');
 }
 
 const about = About.create({ dialog: $('#about'), appInfo: api.appInfo, openLink: api.openLink });
-const imageFolder = ImageFolder.create({ dialog: $('#image-folder'), api, onStatus: (text) => ($('#status-flags').textContent = text) });
+const imageFolder = ImageFolder.create({ dialog: $('#image-folder'), api, onStatus: showStatus });
 const dialogOpen = () => !!document.querySelector('dialog[open]');
 ImageMenu.attach({
   host: editorEl,
   api,
   docDir: () => (state.path ? dirname(state.path) : null),
-  onStatus: (text) => ($('#status-flags').textContent = text),
+  onStatus: showStatus,
 });
 
 function run(cmd, arg) {
@@ -1207,7 +1214,7 @@ async function quitApp() {
     readOnly: () => !!tabs.current?.readOnly,
     openLink,
     pasteImages: uploadImages,
-    onStatus: (text) => ($('#status-flags').textContent = text),
+    onStatus: showStatus,
     nativePaste: OS === 'macos' ? api.pasteNative : undefined,
   });
   if (!(await restoreSession())) {

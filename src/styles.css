@@ -1153,6 +1153,15 @@ body.resizing {
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
+  white-space: nowrap; /* 始终一行：只有一次性提示收缩（specs/016） */
+}
+#status-flags:empty {
+  display: none;
+}
+#status-message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 #status-count {
   margin-left: auto;
