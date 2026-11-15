@@ -16,4 +16,4 @@
 ## 阶段 3：验证
 
 - [x] T1706 `npm run lint`、`npm test`；本地按 CI 中的命令生成 `.sha256` 并用 `shasum -c` 核对；YAML 语法检查
-- [ ] T1707 下一个版本发布后按验收场景核对，记录于 `checklist.md`
+- [x] T1707 下一个版本发布后按验收场景核对，记录于 `checklist.md`（v0.9.1）
