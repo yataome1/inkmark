@@ -78,7 +78,8 @@
       document.removeEventListener('pointerdown', onOutside, true);
       document.removeEventListener('scroll', closeMenu, true);
       window.removeEventListener('blur', closeMenu);
-      previousFocus?.focus?.();
+      // WebKit 中 focus() 会把可编辑区滚到选区处（macOS 上编辑区跳回顶部，specs/015 T1521）
+      previousFocus?.focus?.({ preventScroll: true });
     };
     const closeMenu = () => close?.();
 
