@@ -72,10 +72,12 @@
         {
           label: '复制图片',
           disabled: !file,
-          action: action(async () => {
-            const png = await toPng(await api.readImage(file), ext, img);
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
-          }, '已复制图片'),
+          // 必须在点击的同一时刻调用 clipboard.write，图片以 Promise 交给剪贴板：
+          // WebKit 在 await 之后不再视为用户操作，拒绝写入（specs/015 T1521）
+          action: action(
+            () => navigator.clipboard.write([new ClipboardItem({ 'image/png': api.readImage(file).then((b) => toPng(b, ext, img)) })]),
+            '已复制图片',
+          ),
         },
         { label: '复制图片文件', disabled: !file, action: action(() => api.copyImageFile(file), '已复制图片文件') },
         {

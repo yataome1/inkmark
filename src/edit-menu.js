@@ -52,13 +52,12 @@
         y,
         items.map((i) => (i === sep ? i : { ...i, action: () => run(i.command) })),
       );
+    // fn 须同步调用：剪贴板写入要在点击的同一时刻发生（WebKit，specs/015 T1521）
     const guarded = (fn, done) =>
-      Promise.resolve()
-        .then(fn)
-        .then(
-          () => done && onStatus(done),
-          (e) => onStatus(`操作失败：${e.message || e}`),
-        );
+      new Promise((resolve) => resolve(fn())).then(
+        () => done && onStatus(done),
+        (e) => onStatus(`操作失败：${e.message || e}`),
+      );
     const writeText = (text, done) => guarded(() => navigator.clipboard.writeText(text), done);
 
     async function pasteIntoEditor() {
@@ -72,13 +71,16 @@
       editor().pasteText(await navigator.clipboard.readText());
     }
 
-    async function copyMermaidImage(el) {
+    /** 先同步调用 clipboard.write，图片以 Promise 交给剪贴板（WebKit 要求，见 guarded） */
+    function copyMermaidImage(el) {
       const theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
-      const svg = await Render.renderMermaid(PLAIN_LABELS + el.dataset.source, theme);
       const { width, height } = (el.querySelector('svg') || el).getBoundingClientRect();
       const size = { clientWidth: Math.round(width * 2), clientHeight: Math.round(height * 2) };
-      const png = await ImageMenu.toPng(new TextEncoder().encode(svg), 'svg', size, getComputedStyle(host).backgroundColor);
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      const background = getComputedStyle(host).backgroundColor;
+      const png = Render.renderMermaid(PLAIN_LABELS + el.dataset.source, theme).then((svg) =>
+        ImageMenu.toPng(new TextEncoder().encode(svg), 'svg', size, background),
+      );
+      return navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
     }
 
     function editorMenu(x, y, target) {
