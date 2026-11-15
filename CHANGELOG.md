@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-15
+
+实现规格 [017-release-verification](specs/017-release-verification/spec.md)。
+
 ### 新增
 
 - 每个发布文件附带 SHA-256 校验文件和 GitHub 构建证明，README 与使用指南说明核对方法（017）
