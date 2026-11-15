@@ -49,6 +49,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      id-token: write # 构建证明（specs/017 FR-1702）
+      attestations: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -73,9 +75,22 @@ jobs:
             "{0}: {1:N2} MB" -f $f.Name, ($f.Length / 1MB)
             if ($f.Length -gt $limits[$f.Name]) { throw "$($f.Name) 超过体积上限" }
           }
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: out/*.exe
+      - name: 生成 SHA-256 校验文件（specs/017 FR-1701）
+        shell: pwsh
+        run: |
+          foreach ($f in Get-ChildItem out/*.exe) {
+            $line = "{0}  {1}`n" -f (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower(), $f.Name
+            [IO.File]::WriteAllText("$($f.FullName).sha256", $line)
+            Get-Content "$($f.FullName).sha256"
+          }
       - uses: softprops/action-gh-release@v3
         with:
-          files: out/*.exe
+          files: |
+            out/*.exe
+            out/*.sha256
           generate_release_notes: true
 
   release-mac:
@@ -85,6 +100,8 @@ jobs:
     runs-on: macos-latest
     permissions:
       contents: write
+      id-token: write # 构建证明（specs/017 FR-1702）
+      attestations: write
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -107,6 +124,15 @@ jobs:
           size=$(stat -f %z "out/Inkmark-$v-universal.dmg")
           echo "Inkmark-$v-universal.dmg: $(echo "scale=2; $size/1048576" | bc) MB"
           if [ "$size" -gt 10485760 ]; then echo "超过 10MB 体积上限"; exit 1; fi
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: out/*.dmg
+      - name: 生成 SHA-256 校验文件（specs/017 FR-1701）
+        working-directory: out
+        run: |
+          for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; cat "$f.sha256"; done
       - uses: softprops/action-gh-release@v3
         with:
-          files: out/*.dmg
+          files: |
+            out/*.dmg
+            out/*.sha256

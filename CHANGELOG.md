@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 每个发布文件附带 SHA-256 校验文件和 GitHub 构建证明，README 与使用指南说明核对方法（017）
+
 ## [0.9.0] - 2026-11-15
 
 实现规格 [015-macos-support](specs/015-macos-support/spec.md)、[016-transient-status](specs/016-transient-status/spec.md)。
