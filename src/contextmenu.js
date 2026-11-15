@@ -45,7 +45,8 @@
       if (item.shortcut) {
         const shortcut = document.createElement('span');
         shortcut.className = 'shortcut';
-        shortcut.textContent = item.shortcut;
+        // 逻辑快捷键（Mod+…）按平台显示（specs/015）
+        shortcut.textContent = root.PlatformKeys ? root.PlatformKeys.label(item.shortcut, root.PlatformKeys.currentOs()) : item.shortcut;
         el.append(shortcut);
       }
       if (!item.disabled) {

@@ -1,4 +1,4 @@
-/* global Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu, EditMenu */
+/* global PlatformKeys, Editor, Render, TextUtils, DocFormat, Finder, ExportHtml, TableUi, Resizer, Favorites, ContextMenu, TabUtils, Tabs, StartPage, About, ImageFolder, ImageMenu, EditMenu */
 'use strict';
 
 const api = window.inkmark;
@@ -21,6 +21,9 @@ const state = {
   typewriter: false,
 };
 let editor;
+/** 快捷键显示文字（specs/015）：逻辑快捷键按平台转为 Ctrl+… 或 ⌘ 符号 */
+const keyLabel = (combo) => PlatformKeys.label(combo, PlatformKeys.currentOs());
+const isTextInput = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
 
 // ---------------------------------------------------------------- 工具函数
 
@@ -112,10 +115,10 @@ let busy = false; // 关闭或全部保存的询问进行中
 const startPage = StartPage.create({
   root: $('#start-page'),
   actions: () => [
-    { icon: '+', label: '新建空白 Markdown', shortcut: 'Ctrl+N', run: newTab },
-    { icon: '↗', label: '打开文件…', shortcut: 'Ctrl+O', run: () => run('open') },
-    { icon: '▸', label: '打开文件夹…', shortcut: 'Ctrl+Shift+O', run: () => run('open-folder') },
-    ...(closedTabs.length ? [{ icon: '↺', label: '恢复关闭的标签', shortcut: 'Ctrl+Shift+T', run: () => run('reopen-tab') }] : []),
+    { icon: '+', label: '新建空白 Markdown', shortcut: keyLabel('Mod+N'), run: newTab },
+    { icon: '↗', label: '打开文件…', shortcut: keyLabel('Mod+O'), run: () => run('open') },
+    { icon: '▸', label: '打开文件夹…', shortcut: keyLabel('Mod+Shift+O'), run: () => run('open-folder') },
+    ...(closedTabs.length ? [{ icon: '↺', label: '恢复关闭的标签', shortcut: keyLabel('Mod+Shift+T'), run: () => run('reopen-tab') }] : []),
     { icon: '?', label: '使用指南', run: () => openBundled('guide') },
     { icon: '¶', label: '查看示例文档', run: () => openBundled('demo') },
   ],
@@ -436,11 +439,11 @@ function showTabMenu(tab, x, y) {
   const i = tabs.list.indexOf(tab);
   const favorited = !!tab.path && favorites.has(tab.path);
   ContextMenu.show(x, y, [
-    { label: '关闭', shortcut: 'Ctrl+W', disabled: !isDoc, action: () => closeTabs([tab]) },
+    { label: '关闭', shortcut: 'Mod+W', disabled: !isDoc, action: () => closeTabs([tab]) },
     { label: '关闭其他标签', disabled: tabs.list.length < 2, action: () => closeTabs(tabs.list.filter((t) => t !== tab)) },
     { label: '关闭右侧标签', disabled: i === tabs.list.length - 1, action: () => closeTabs(tabs.list.slice(i + 1)) },
     '-',
-    { label: '重新打开关闭的标签', shortcut: 'Ctrl+Shift+T', disabled: !closedTabs.length, action: reopenTab },
+    { label: '重新打开关闭的标签', shortcut: 'Mod+Shift+T', disabled: !closedTabs.length, action: reopenTab },
     '-',
     { label: '复制文件路径', disabled: !tab.path, action: () => navigator.clipboard.writeText(tab.path) },
     { label: '在资源管理器中显示', disabled: !tab.path, action: () => api.revealPath(tab.path) },
@@ -932,6 +935,9 @@ const COMMANDS = {
   'move-tab': (step) => tabs.move(tabs.current, tabs.list.indexOf(tabs.current) + Number(step)),
   'export-html': () => exportAs('html'),
   'export-pdf': () => exportAs('pdf'),
+  // macOS“编辑”菜单的撤销、重做（specs/015 plan 设计要点 2）：焦点在输入框时撤销输入框自身
+  undo: () => (isTextInput(document.activeElement) ? document.execCommand('undo') : editor.undo()),
+  redo: () => (isTextInput(document.activeElement) ? document.execCommand('redo') : editor.redo()),
   find: () => showFindbar(false),
   replace: () => showFindbar(true),
   'source-mode': toggleSourceMode,
@@ -966,12 +972,13 @@ function setZoom(z) {
   saveZoomSoon(); // FR-1108
 }
 
-// Ctrl+滚轮缩放（FR-1107）：按设备像素累计，约一档普通滚轮（100）缩放 10%
+// Ctrl+滚轮缩放（FR-1107）：按设备像素累计，约一档普通滚轮（100）缩放 10%。
+// macOS：⌘+滚轮，触控板双指捏合在 WebKit 中也表现为带 ctrlKey 的 wheel 事件（specs/015）
 let wheelZoom = 0;
 window.addEventListener(
   'wheel',
   (e) => {
-    if (!e.ctrlKey) return;
+    if (!e.ctrlKey && !(e.metaKey && PlatformKeys.currentOs() === 'macos')) return;
     e.preventDefault();
     // 页面缩放后浏览器按 CSS 像素报告，乘回缩放比例；取整避免 100/1.1*1.1 这类浮点误差
     const px = Math.round(e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1) * zoom);
@@ -1031,63 +1038,64 @@ function run(cmd, arg) {
   }
 }
 
-// Typora 风格快捷键，与 src-tauri/src/menu.rs 中显示的快捷键一一对应。
-// WebView2 有焦点时菜单快捷键不会触发，因此全部在这里处理（research.md R2）。
-const KEYMAP = {
-  'Ctrl+KeyN': ['new'],
-  'Ctrl+KeyO': ['open'],
-  'Ctrl+Shift+KeyO': ['open-folder'],
-  'Ctrl+KeyS': ['save'],
-  'Ctrl+Shift+KeyS': ['save-as'],
-  'Ctrl+Alt+KeyS': ['save-all'],
-  'Ctrl+KeyW': ['close-tab'],
-  'Ctrl+Shift+KeyT': ['reopen-tab'],
+// Typora 风格快捷键，与 src-tauri/src/menu.rs、shortcuts.js 一一对应（test/shortcuts.test.js 检查）。
+// 写法为逻辑快捷键（Mod = Windows 的 Ctrl / macOS 的 ⌘，见 platform-keys.js），按平台展开。
+// WebView2 有焦点时菜单快捷键不会触发，因此全部在这里处理（research.md R2）；
+// macOS 上网页 preventDefault 的按键不再触发菜单（specs/015 research.md R8）。
+const KEYMAP = PlatformKeys.keymap({
+  'Mod+N': ['new'],
+  'Mod+O': ['open'],
+  'Mod+Shift+O': ['open-folder'],
+  'Mod+S': ['save'],
+  'Mod+Shift+S': ['save-as'],
+  'Mod+Alt+S': ['save-all'],
+  'Mod+W': ['close-tab'],
+  'Mod+Shift+T': ['reopen-tab'],
   'Ctrl+Tab': ['next-tab'],
   'Ctrl+Shift+Tab': ['prev-tab'],
   'Ctrl+PageDown': ['next-tab'],
   'Ctrl+PageUp': ['prev-tab'],
   'Ctrl+Shift+PageDown': ['move-tab', 1],
   'Ctrl+Shift+PageUp': ['move-tab', -1],
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`Alt+Digit${n}`, ['goto-tab', n]])),
-  'Ctrl+Equal': ['zoom-in'],
-  'Ctrl+Minus': ['zoom-out'],
-  'Ctrl+Shift+Digit9': ['zoom-reset'],
-  'Ctrl+Digit0': ['paragraph'],
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`Ctrl+Digit${n}`, ['heading', n]])),
-  'Ctrl+KeyB': ['bold'],
-  'Ctrl+KeyI': ['italic'],
-  'Ctrl+KeyU': ['underline'],
-  'Shift+Alt+Digit5': ['strike'],
-  'Ctrl+Shift+Backquote': ['inline-code'],
-  'Ctrl+KeyK': ['link'],
-  'Ctrl+Shift+KeyQ': ['quote'],
-  'Ctrl+Shift+BracketLeft': ['ordered-list'],
-  'Ctrl+Shift+BracketRight': ['list'],
-  'Ctrl+Shift+KeyX': ['check'],
-  'Ctrl+Shift+KeyK': ['code-block'],
-  'Ctrl+Shift+KeyM': ['math-block'],
-  'Ctrl+KeyT': ['table'],
-  'Ctrl+Enter': ['table-insert-row'],
-  'Ctrl+Shift+Backspace': ['table-delete-row'],
-  'Ctrl+Shift+Minus': ['line'],
-  'Ctrl+Slash': ['source-mode'],
-  'Ctrl+Shift+KeyL': ['toggle-sidebar'],
-  'Ctrl+Shift+Digit1': ['sidebar-outline'],
-  'Ctrl+Shift+Digit2': ['sidebar-favorites'],
-  'Ctrl+Shift+Digit3': ['sidebar-files'],
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [`Alt+${n}`, ['goto-tab', n]])),
+  'Mod+=': ['zoom-in'],
+  'Mod+-': ['zoom-out'],
+  'Mod+Shift+9': ['zoom-reset'],
+  'Mod+0': ['paragraph'],
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`Mod+${n}`, ['heading', n]])),
+  'Mod+B': ['bold'],
+  'Mod+I': ['italic'],
+  'Mod+U': ['underline'],
+  'Shift+Alt+5': ['strike'],
+  'Mod+Shift+`': ['inline-code'],
+  'Mod+K': ['link'],
+  'Mod+Shift+Q': ['quote'],
+  'Mod+Shift+[': ['ordered-list'],
+  'Mod+Shift+]': ['list'],
+  'Mod+Shift+X': ['check'],
+  'Mod+Shift+K': ['code-block'],
+  'Mod+Shift+M': ['math-block'],
+  'Mod+T': ['table'],
+  'Mod+Enter': ['table-insert-row'],
+  'Mod+Shift+Backspace': ['table-delete-row'],
+  'Mod+Shift+-': ['line'],
+  'Mod+/': ['source-mode'],
+  'Mod+Shift+L': ['toggle-sidebar'],
+  'Mod+Shift+1': ['sidebar-outline'],
+  'Mod+Shift+2': ['sidebar-favorites'],
+  'Mod+Shift+3': ['sidebar-files'],
   F1: ['shortcuts'],
   F8: ['focus-mode'],
   F9: ['typewriter-mode'],
   F11: ['fullscreen'],
-  'Ctrl+KeyF': ['find'],
-  'Ctrl+KeyH': ['replace'],
-};
+  'Mod+F': ['find'],
+  'Mod+H': ['replace'],
+});
 
 window.addEventListener(
   'keydown',
   (e) => {
-    const key = `${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.altKey ? 'Alt+' : ''}${e.code}`;
-    const hit = KEYMAP[key];
+    const hit = KEYMAP[PlatformKeys.eventCombo(e, PlatformKeys.currentOs())];
     if (!hit || !editor || dialogOpen()) return;
     if (hit[0].startsWith('table-') && !TableUi.isActive()) return; // 只在表格单元格内生效
     if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
@@ -1100,7 +1108,7 @@ window.addEventListener(
 
 // ---------------------------------------------------------------- 链接、拖放（FR-001/016）
 
-/** Ctrl+单击与右键“打开链接”（specs/014）共用 */
+/** Ctrl+单击（macOS 为 ⌘+单击，specs/015）与右键“打开链接”（specs/014）共用 */
 function openLink(url) {
   if (/^https?:/i.test(url)) api.openExternal(url);
   else if (state.path && isMarkdownPath(url.split('#')[0])) {
@@ -1111,7 +1119,7 @@ function openLink(url) {
 editorEl.addEventListener(
   'click',
   (e) => {
-    if (!e.ctrlKey) return;
+    if (!(PlatformKeys.currentOs() === 'macos' ? e.metaKey : e.ctrlKey)) return;
     const url = e.target.closest('[data-href]')?.dataset.href;
     if (!url) return;
     e.preventDefault();

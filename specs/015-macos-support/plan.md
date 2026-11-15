@@ -110,11 +110,15 @@ macOS 上与系统快捷键冲突或不符合习惯的项，由 `platform-keys.j
 | 全屏 | `F11` | `⌃⌘F` | `F11` 是系统“显示桌面” |
 | 跳到第 n 个标签 | `Alt+1…9` | `⌃1…9` | `⌥` + 数字在 Mac 上输入特殊字符 |
 | 快捷键列表 | `F1` | `⇧⌘/` | Mac“帮助”菜单的习惯 |
+| 引用 | `Ctrl+Shift+Q` | `⌥⌘Q` | `⇧⌘Q` 是系统“退出登录” |
+| 行内代码 | ``Ctrl+Shift+` `` | ``⌃` `` | ``⇧⌘` `` 是系统切换窗口 |
+| 删除线 | `Alt+Shift+5` | ``⌃⇧` `` | `⌥` 加数字在 Mac 上输入特殊字符 |
 | 下一个 / 上一个标签 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | `⌃Tab` / `⌃⇧Tab` | 两平台本来都是真实 Control 键，无需替换 |
 | 专注模式 / 打字机模式 | `F8` / `F9` | `F8` / `F9` | 与 Typora for Mac 相同；笔记本需按 `fn` |
 
-其余 `Ctrl+…` 一律映射为 `⌘…`（如 `⌘S`、`⌘/`、`⌘1–6`、`⇧⌘K`）。显示文字在 macOS 上用符号并按 `⌃⌥⇧⌘` 顺序排列（如 `⇧⌘K`）。
+引用、行内代码、删除线三项在 T1512 的系统快捷键检查中发现冲突后补入（2026-11-15）。其余 `Ctrl+…` 一律映射为 `⌘…`（如 `⌘S`、`⌘/`、`⌘1–6`、`⇧⌘K`）。显示文字在 macOS 上用符号并按 `⌃⌥⇧⌘` 顺序排列（如 `⇧⌘K`）。
 
+- 链接的 `Ctrl+单击` 在 macOS 上为 `⌘+单击`（`⌃+单击` 是系统右键）；表格单元格内的撤销同样按 `⌘`。
 - 前端：`keydown` 中按 `e.metaKey`（macOS）或 `e.ctrlKey`（Windows）生成 `Mod`，`e.ctrlKey` 在 macOS 上生成 `Ctrl`，再查 `KEYMAP`。
 - `menu.rs`：`i(id, label, "Mod+S")`。Windows：生成现在的 `文字\t快捷键`；macOS：`MenuItemBuilder::accelerator` 设真实快捷键（`CmdOrCtrl+S` 等），系统显示符号。按键仍由前端处理（见调研结论“菜单快捷键”）。
 - `shortcuts.test.js`：从 `app.js`、`shortcuts.js`、`menu.rs` 取出逻辑快捷键，分别按 Windows、macOS 规则展开后比较，三处必须一致；另检查 macOS 结果不含系统保留快捷键（`⌘H` `⌘M` `⌘Q` `⌘,` `` ⌘` `` `⇧⌘3/4/5` `⌃⌘Q` `⌘Space`）。

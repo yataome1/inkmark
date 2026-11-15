@@ -14,27 +14,27 @@
     if (mermaid) top.push({ label: '复制图表源码', command: 'copy-mermaid' }, { label: '复制为图片', command: 'copy-mermaid-image' });
     return [
       ...(top.length ? [...top, sep] : []),
-      { label: '撤销', shortcut: 'Ctrl+Z', command: 'undo', disabled: readOnly || !canUndo },
-      { label: '重做', shortcut: 'Ctrl+Y', command: 'redo', disabled: readOnly || !canRedo },
+      { label: '撤销', shortcut: 'Mod+Z', command: 'undo', disabled: readOnly || !canUndo },
+      { label: '重做', shortcut: 'Mod+Y', command: 'redo', disabled: readOnly || !canRedo },
       sep,
-      { label: '剪切', shortcut: 'Ctrl+X', command: 'cut', disabled: readOnly || !hasSelection },
-      { label: '复制', shortcut: 'Ctrl+C', command: 'copy', disabled: !hasSelection },
-      { label: '粘贴', shortcut: 'Ctrl+V', command: 'paste', disabled: readOnly },
+      { label: '剪切', shortcut: 'Mod+X', command: 'cut', disabled: readOnly || !hasSelection },
+      { label: '复制', shortcut: 'Mod+C', command: 'copy', disabled: !hasSelection },
+      { label: '粘贴', shortcut: 'Mod+V', command: 'paste', disabled: readOnly },
       sep,
-      { label: '全选', shortcut: 'Ctrl+A', command: 'select-all' },
+      { label: '全选', shortcut: 'Mod+A', command: 'select-all' },
     ];
   }
 
   /** 输入框菜单（FR-1404） */
   function inputItems({ hasSelection, readOnly }) {
     return [
-      { label: '撤销', shortcut: 'Ctrl+Z', command: 'undo', disabled: readOnly },
+      { label: '撤销', shortcut: 'Mod+Z', command: 'undo', disabled: readOnly },
       sep,
-      { label: '剪切', shortcut: 'Ctrl+X', command: 'cut', disabled: readOnly || !hasSelection },
-      { label: '复制', shortcut: 'Ctrl+C', command: 'copy', disabled: !hasSelection },
-      { label: '粘贴', shortcut: 'Ctrl+V', command: 'paste', disabled: readOnly },
+      { label: '剪切', shortcut: 'Mod+X', command: 'cut', disabled: readOnly || !hasSelection },
+      { label: '复制', shortcut: 'Mod+C', command: 'copy', disabled: !hasSelection },
+      { label: '粘贴', shortcut: 'Mod+V', command: 'paste', disabled: readOnly },
       sep,
-      { label: '全选', shortcut: 'Ctrl+A', command: 'select-all' },
+      { label: '全选', shortcut: 'Mod+A', command: 'select-all' },
     ];
   }
 
@@ -150,7 +150,7 @@
         const at = keyboard && editor().view.coordsAtPos(editor().view.state.selection.main.head);
         editorMenu(at ? at.left : e.clientX, at ? at.bottom : e.clientY, keyboard ? null : e.target);
       } else if (input) inputMenu(e.clientX, e.clientY, input);
-      else if (text) show(e.clientX, e.clientY, [{ label: '复制', shortcut: 'Ctrl+C', command: 'copy' }], () => writeText(text));
+      else if (text) show(e.clientX, e.clientY, [{ label: '复制', shortcut: 'Mod+C', command: 'copy' }], () => writeText(text));
       else return; // 不显示菜单；发布版的内核菜单已关闭（FR-1401）
       e.preventDefault();
     });

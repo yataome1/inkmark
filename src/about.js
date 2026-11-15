@@ -165,7 +165,10 @@
         box.append(el('h3', 'about-group', group));
         for (const { label, keys, where } of items) {
           const r = el('div', 'about-row');
-          r.append(el('span', 'about-value', where ? `${label}（${where}）` : label), el('kbd', 'about-key', keys));
+          r.append(
+            el('span', 'about-value', where ? `${label}（${where}）` : label),
+            el('kbd', 'about-key', root.PlatformKeys ? root.PlatformKeys.label(keys, root.PlatformKeys.currentOs()) : keys),
+          );
           box.append(r);
         }
         columns.append(box);

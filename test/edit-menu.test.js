@@ -28,13 +28,14 @@ test('链接、公式、图表的命令在顶部', () => {
   assert.equal(labels(editorItems({ ...base, mermaid: 'graph TD' })).split(',-,')[0], '复制图表源码,复制为图片');
 });
 
+// 逻辑快捷键，显示时由 contextmenu.js 按平台转换（specs/015）
 test('菜单项的快捷键与键盘快捷键一致', () => {
   const shortcuts = Object.fromEntries(
     editorItems(base)
       .filter((i) => i !== '-')
       .map((i) => [i.label, i.shortcut]),
   );
-  assert.deepEqual(shortcuts, { 撤销: 'Ctrl+Z', 重做: 'Ctrl+Y', 剪切: 'Ctrl+X', 复制: 'Ctrl+C', 粘贴: 'Ctrl+V', 全选: 'Ctrl+A' });
+  assert.deepEqual(shortcuts, { 撤销: 'Mod+Z', 重做: 'Mod+Y', 剪切: 'Mod+X', 复制: 'Mod+C', 粘贴: 'Mod+V', 全选: 'Mod+A' });
 });
 
 test('输入框', () => {

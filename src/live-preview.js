@@ -507,7 +507,9 @@
       dom.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') e.preventDefault();
         const key = e.key.toLowerCase();
-        if (e.ctrlKey && (key === 'z' || key === 'y')) {
+        // macOS 为 ⌘Z / ⇧⌘Z（specs/015）
+        const mod = root.PlatformKeys?.currentOs() === 'macos' ? e.metaKey : e.ctrlKey;
+        if (mod && (key === 'z' || key === 'y')) {
           e.preventDefault();
           if (key === 'z' && !e.shiftKey) undo(view);
           else redo(view);
