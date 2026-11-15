@@ -50,6 +50,17 @@ macOS:
 - macOS 12 Monterey or later; open the `.dmg` and drag Inkmark to Applications
 - The app is not signed or notarized by Apple, so the first launch says the developer cannot be verified: close the message, then click "Open Anyway" in System Settings > Privacy & Security. On macOS 12–14 you can also Control-click Inkmark and choose "Open". You are only asked once
 
+### Verifying downloads
+
+The installers are not code-signed. Before allowing one to run for the first time, you can verify the download (releases after 0.9.0):
+
+- **Checksum**: each installer has a matching `.sha256` file. Download both into the same folder, then:
+  - macOS (Terminal): `shasum -a 256 -c Inkmark-x.y.z-universal.dmg.sha256` — `OK` means it matches
+  - Windows (PowerShell): `(Get-FileHash .\Inkmark-Setup-x.y.z-x64.exe).Hash -eq (Get-Content .\Inkmark-Setup-x.y.z-x64.exe.sha256).Split()[0]` — `True` means it matches
+- **Build provenance**: confirms the file was built by this repository's release workflow from a public commit. With the [GitHub CLI](https://cli.github.com/) installed, run `gh attestation verify <file> --repo yataome1/inkmark`, or see Attestations on the repository's Actions page.
+
+A checksum catches a corrupted or swapped download; build provenance confirms the file really came from this repository. Neither replaces code signing, so the first launch still needs the steps above.
+
 ## Keyboard shortcuts
 
 Common shortcuts are listed below; press `F1` in the app to see all of them. On macOS use `⌘` instead of `Ctrl` (Replace is `⌥⌘F` and the shortcut list is `⇧⌘/`; the user guide lists the other differences).

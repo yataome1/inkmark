@@ -48,6 +48,17 @@ macOS：
 - macOS 12 Monterey 及以上；打开 `.dmg`，把 Inkmark 拖到“应用程序”
 - 未做 Apple 签名与公证，首次打开会提示无法验证开发者：先关闭提示，再到“系统设置”的“隐私与安全性”中点“仍要打开”。macOS 12–14 也可以按住 Control 键单击 Inkmark，选择“打开”。之后不再提示
 
+### 核对下载的文件
+
+安装文件没有代码签名。第一次放行之前，可以先核对下载的文件（0.9.0 之后的版本提供）：
+
+- **校验和**：每个安装文件旁有一个同名的 `.sha256` 文件。把两者下载到同一个文件夹，然后：
+  - macOS（终端）：`shasum -a 256 -c Inkmark-x.y.z-universal.dmg.sha256`，显示 `OK` 即一致
+  - Windows（PowerShell）：`(Get-FileHash .\Inkmark-Setup-x.y.z-x64.exe).Hash -eq (Get-Content .\Inkmark-Setup-x.y.z-x64.exe.sha256).Split()[0]`，显示 `True` 即一致
+- **构建证明**：确认文件由本仓库的发布流程从公开的提交构建。安装 [GitHub CLI](https://cli.github.com/) 后执行 `gh attestation verify <文件名> --repo yataome1/inkmark`；也可以在仓库 Actions 页面的 Attestations 中查看。
+
+校验和能发现下载损坏或途中被替换，构建证明能确认文件确实出自本仓库。两者都不能代替代码签名，第一次打开仍需按上面的步骤放行。
+
 ## 快捷键
 
 常用快捷键如下，按 `F1` 可在软件中查看全部快捷键。macOS 上把 `Ctrl` 换成 `⌘`（替换为 `⌥⌘F`，快捷键列表为 `⇧⌘/`，其余不同之处见内置使用指南）。
