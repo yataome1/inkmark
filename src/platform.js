@@ -26,7 +26,13 @@
   }
 
   window.inkmark = {
-    appReady: () => invoke('app_ready'),
+    /** 'windows' | 'macos'，由 appReady 设置（specs/015） */
+    os: 'windows',
+    async appReady() {
+      const { files, os } = await invoke('app_ready');
+      window.inkmark.os = os;
+      return files;
+    },
     readFile: (path) => invoke('read_file', { path }),
     async openDialog() {
       const path = await T.dialog.open({ multiple: false, directory: false, filters: MD_FILTERS });

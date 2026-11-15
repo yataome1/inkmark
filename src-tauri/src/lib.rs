@@ -13,14 +13,15 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State, Theme, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Theme, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 const REPO_URL: &str = "https://github.com/yataome1/inkmark";
 
 struct AppState {
     settings: Mutex<settings::Settings>,
-    initial_files: Mutex<Vec<String>>,
+    /// 前端就绪前收到的待打开文件；`app_ready` 取走后为 None，之后的文件直接发给前端
+    initial_files: Mutex<Option<Vec<String>>>,
     /// 当前文件是否已收藏、当前文件能否收藏（已保存），决定“文件”菜单的文字与可用状态
     favorite_menu: Mutex<(bool, bool)>,
     tab_menu: Mutex<menu::TabMenu>,
@@ -94,9 +95,55 @@ fn theme_of(name: &str) -> Option<Theme> {
 
 // ---------------------------------------------------------------- 命令（IPC 契约见 plan.md）
 
+#[derive(Serialize)]
+struct Ready {
+    files: Vec<String>,
+    /// "windows" | "macos"：前端据此决定快捷键与路径写法（specs/015）
+    os: &'static str,
+}
+
 #[tauri::command]
-fn app_ready(state: State<AppState>) -> Vec<String> {
-    std::mem::take(&mut *state.initial_files.lock().unwrap())
+fn app_ready(state: State<AppState>) -> Ready {
+    Ready {
+        files: state.initial_files.lock().unwrap().take().unwrap_or_default(),
+        os: std::env::consts::OS,
+    }
+}
+
+/// 打开文件：前端未就绪时暂存，由 `app_ready` 返回；已就绪时显示窗口并发给前端（FR-002、FR-1503）
+fn open_files(app: &AppHandle, files: Vec<String>) {
+    if files.is_empty() {
+        return;
+    }
+    let state = app.state::<AppState>();
+    let mut pending = state.initial_files.lock().unwrap();
+    if let Some(list) = pending.as_mut() {
+        list.extend(files);
+        return;
+    }
+    drop(pending);
+    show_main_window(app);
+    let _ = app.emit_to("main", "open-file", files);
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
+}
+
+/// macOS 关闭窗口只隐藏，程序留在程序坞（FR-1508）；前端已完成未保存确认
+#[tauri::command]
+fn hide_main_window(window: tauri::WebviewWindow) -> CmdResult<()> {
+    window.hide().map_err(err)
+}
+
+/// 前端完成未保存确认后退出程序（FR-1508，宪章 IV）
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -162,11 +209,14 @@ fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AppInfo {
     version: String,
     tauri: &'static str,
-    webview2: Option<String>,
-    windows: Option<String>,
+    /// 网页内核名称与版本：Windows 为 WebView2，macOS 为 WebKit（specs/015）
+    webview_name: &'static str,
+    webview: Option<String>,
+    os: Option<String>,
 }
 
 #[tauri::command]
@@ -174,8 +224,13 @@ fn app_info(app: AppHandle) -> AppInfo {
     AppInfo {
         version: app.package_info().version.to_string(),
         tauri: tauri::VERSION,
-        webview2: tauri::webview_version().ok(),
-        windows: sys::os_version(),
+        webview_name: if cfg!(target_os = "macos") {
+            "WebKit"
+        } else {
+            "WebView2"
+        },
+        webview: tauri::webview_version().ok(),
+        os: sys::os_version(),
     }
 }
 
@@ -495,14 +550,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             // FR-002：第二次启动时把文件交给已运行实例
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.unminimize();
-                let _ = win.set_focus();
-            }
-            let files = files_from_args(&argv, Path::new(&cwd));
-            if !files.is_empty() {
-                let _ = app.emit_to("main", "open-file", files);
-            }
+            show_main_window(app);
+            open_files(app, files_from_args(&argv, Path::new(&cwd)));
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -535,6 +584,8 @@ pub fn run() {
             set_settings,
             export_html,
             export_pdf,
+            hide_main_window,
+            quit_app,
         ])
         .on_menu_event(|app, e| on_menu(app, e.id().as_ref()))
         .setup(|app| {
@@ -545,7 +596,7 @@ pub fn run() {
             let cwd = std::env::current_dir().unwrap_or_default();
             app.manage(AppState {
                 settings: Mutex::new(settings),
-                initial_files: Mutex::new(files_from_args(&args, &cwd)),
+                initial_files: Mutex::new(Some(files_from_args(&args, &cwd))),
                 favorite_menu: Mutex::new((false, false)),
                 tab_menu: Mutex::new(menu::TabMenu::default()),
             });
@@ -574,10 +625,32 @@ pub fn run() {
                 let _ = app.asset_protocol_scope().allow_directory(&images, false);
             }
             refresh_menu(app.handle());
+            #[cfg(target_os = "macos")]
+            sys::install_terminate_hook(app.handle());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Inkmark");
+        .build(tauri::generate_context!())
+        .expect("error while running Inkmark")
+        .run(on_run_event);
+}
+
+/// macOS：访达 / 程序坞打开文件、点击程序坞图标（FR-1503、FR-1508）
+fn on_run_event(app: &AppHandle, event: RunEvent) {
+    match event {
+        #[cfg(target_os = "macos")]
+        RunEvent::Opened { urls } => {
+            let files = urls
+                .iter()
+                .filter_map(|u| u.to_file_path().ok())
+                .filter(|p| fileops::is_markdown(p) && p.is_file())
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            open_files(app, files);
+        }
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => show_main_window(app),
+        _ => {}
+    }
 }
 
 #[cfg(test)]

@@ -27,6 +27,13 @@ serde_json = "1"
 webview2-com = "0.39"
 windows-core = "0.62"
 
+# macOS：wry 已依赖的系统框架绑定，只启用用到的部分（specs/015 plan）
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSGeometry", "NSObject", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSPasteboard", "NSPasteboardItem", "NSPrintInfo", "NSPrintOperation", "NSResponder", "NSView", "NSWindow"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "objc2-app-kit", "WKWebView"] }
+
 # 体积优化（宪章 VII）
 [profile.release]
 opt-level = "s"

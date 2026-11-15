@@ -13,12 +13,12 @@
   ];
 
   /** 复制到剪贴板的多行文本，用于粘贴到 Issue（FR-902） */
-  function versionText({ version, commit, date, tauri, webview2, windows }) {
+  function versionText({ version, commit, date, tauri, webviewName, webview, os }) {
     return [
       `Inkmark ${version} (${commit || UNKNOWN}, ${date || UNKNOWN})`,
       `Tauri ${tauri}`,
-      `WebView2 ${webview2 || UNKNOWN}`,
-      windows || `Windows ${UNKNOWN}`,
+      `${webviewName || '网页内核'} ${webview || UNKNOWN}`,
+      os || `系统 ${UNKNOWN}`,
     ].join('\n');
   }
 
@@ -108,8 +108,8 @@
         row('提交', all.commit),
         row('构建日期', all.date),
         row('Tauri', all.tauri),
-        row('WebView2', all.webview2),
-        row('系统', all.windows),
+        row(all.webviewName || '网页内核', all.webview),
+        row('系统', all.os),
       );
       copy.onclick = async () => {
         await navigator.clipboard.writeText(versionText(all));

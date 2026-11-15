@@ -203,7 +203,7 @@ win.with_webview(move |wv| unsafe {
 | 方法 | 方向 | 说明 |
 |---|---|---|
 | `app_ready` | 前端 → Rust | 返回值由 `string[]` 改为 `{ files: string[], os: "windows" \| "macos" }` |
-| `app_info` | 前端 → Rust | 返回值字段 `webview2`、`windows` 改为 `webview`（内核名称与版本）、`os`（系统名称与版本）；`about.js` 同步修改 |
+| `app_info` | 前端 → Rust | 返回值字段 `webview2`、`windows` 改为 `webviewName`（`WebView2` / `WebKit`）、`webview`（内核版本）、`os`（系统名称与版本）；`about.js` 同步修改，Windows 上显示内容不变 |
 | `hide_main_window` | 前端 → Rust | 新增，仅 macOS 有效：隐藏主窗口 |
 | `quit_app` | 前端 → Rust | 新增：前端完成未保存确认后退出程序 |
 | `command` 事件 `quit` | Rust → 前端 | 已有；macOS 上由程序坞“退出”触发时也发送 |

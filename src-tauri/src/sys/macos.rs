@@ -1,8 +1,16 @@
 //! macOS 平台实现（specs/015 plan）：调用系统库，不引入依赖。
 
+use objc2::rc::Retained;
+use objc2::runtime::{AnyClass, AnyObject, ProtocolObject, Sel};
+use objc2::{MainThreadMarker, sel};
+use objc2_app_kit::{NSApplication, NSPasteboard, NSPasteboardWriting};
+use objc2_foundation::{NSArray, NSString, NSURL};
+use serde_json::json;
 use std::ffi::{CStr, c_char, c_void};
 use std::io;
 use std::path::Path;
+use std::sync::OnceLock;
+use tauri::{AppHandle, Emitter, Manager};
 
 unsafe extern "C" {
     // libSystem 中的 CommonCrypto
@@ -44,14 +52,81 @@ pub fn os_version() -> Option<String> {
     Some(format!("macOS {version}"))
 }
 
-/// TODO(T1505)：NSPasteboard 写入文件 URL
-pub fn put_files<R: tauri::Runtime>(_window: &tauri::WebviewWindow<R>, _paths: &[&Path]) -> Result<(), String> {
-    Err("macOS 版尚未支持复制图片文件".into())
+/// 复制图片文件：把文件 URL 写入系统剪贴板，可在访达中粘贴（FR-1201，specs/015 US3 场景 4）
+pub fn put_files<R: tauri::Runtime>(_window: &tauri::WebviewWindow<R>, paths: &[&Path]) -> Result<(), String> {
+    write_files(&NSPasteboard::generalPasteboard(), paths)
+}
+
+fn write_files(board: &NSPasteboard, paths: &[&Path]) -> Result<(), String> {
+    let urls: Vec<Retained<ProtocolObject<dyn NSPasteboardWriting>>> = paths
+        .iter()
+        .map(|p| ProtocolObject::from_retained(NSURL::fileURLWithPath(&NSString::from_str(&p.to_string_lossy()))))
+        .collect();
+    board.clearContents();
+    if board.writeObjects(&NSArray::from_retained_slice(&urls)) {
+        Ok(())
+    } else {
+        Err("写入剪贴板失败".into())
+    }
+}
+
+// ---------------------------------------------------------------- 程序坞“退出”（FR-1508，research.md R8 T1504）
+
+static APP: OnceLock<AppHandle> = OnceLock::new();
+
+/// NSTerminateCancel = 0，NSTerminateNow = 1
+extern "C-unwind" fn should_terminate(_this: &AnyObject, _sel: Sel, _sender: *mut AnyObject) -> usize {
+    let Some(win) = APP.get().and_then(|app| app.get_webview_window("main")) else {
+        return 1;
+    };
+    if !win.is_visible().unwrap_or(false) {
+        return 1;
+    }
+    // 窗口可见时可能有未保存的修改：取消本次退出，交给前端走与 ⌘Q 相同的确认流程
+    let _ = win.emit_to("main", "command", json!({ "cmd": "quit", "arg": null }));
+    0
+}
+
+/// tao 的应用代理没有实现 `applicationShouldTerminate:`，程序坞“退出”、注销会直接结束进程。
+/// 启动时为其补上该方法；已存在时 `class_addMethod` 不覆盖（tao 将来自己实现时以其为准）。
+pub fn install_terminate_hook(app: &AppHandle) {
+    let _ = APP.set(app.clone());
+    let Some(mtm) = MainThreadMarker::new() else {
+        return;
+    };
+    let Some(delegate) = NSApplication::sharedApplication(mtm).delegate() else {
+        return;
+    };
+    let obj: &AnyObject = delegate.as_ref();
+    let cls: &AnyClass = obj.class();
+    type Handler = extern "C-unwind" fn(&AnyObject, Sel, *mut AnyObject) -> usize;
+    // SAFETY: 函数签名与类型编码 `Q@:@`（返回 NSUInteger，参数 self、_cmd、sender）一致
+    unsafe {
+        objc2::ffi::class_addMethod(
+            std::ptr::from_ref(cls).cast_mut(),
+            sel!(applicationShouldTerminate:),
+            std::mem::transmute::<Handler, objc2::runtime::Imp>(should_terminate),
+            c"Q@:@".as_ptr(),
+        );
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn write_files_puts_file_urls() {
+        let board = NSPasteboard::pasteboardWithUniqueName();
+        let a = Path::new("/tmp/inkmark a.png");
+        let b = Path::new("/tmp/图片.jpg");
+        write_files(&board, &[a, b]).unwrap();
+        let items = board.pasteboardItems().unwrap();
+        assert_eq!(items.len(), 2);
+        let ty = NSString::from_str("public.file-url");
+        let first = items.objectAtIndex(0).stringForType(&ty).unwrap().to_string();
+        assert_eq!(first, "file:///tmp/inkmark%20a.png");
+    }
 
     #[test]
     fn os_version_is_macos() {

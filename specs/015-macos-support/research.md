@@ -105,7 +105,7 @@ Tauri 在 macOS 上用系统自带的 WKWebView（Safari 内核），与 Windows
 | `runOperationModalForWindow:delegate:didRunSelector:contextInfo:`，隐藏窗口 | **可用**：200 段测试页输出 8 页、30KB；文字可选中，中文正常；CSS 颜色保留；首页截图正常 |
 | 同上，可见窗口 | 与隐藏窗口结果完全相同 |
 
-- 纸张取系统默认（本机区域为 A4：595×842pt，边距 72/72/90/90pt）。WebView2 `PrintToPdf` 不传设置时也取系统默认，但两者默认边距不同；T1506 中两个平台都显式设置纸张与边距，保证一致。
+- 纸张不设置时取系统默认（本机区域为 A4：595×842pt，边距 72/72/90/90pt）。WebView2 `PrintToPdf` 不传设置时按其文档为 Letter（8.5×11 英寸）、四边 1cm，与系统区域无关。为不改变 Windows 导出结果（NFR-1504），T1506 只在 macOS 上显式设为 Letter、四边 1cm（28.35pt）；用正式实现在原型中导出同一页面：612×792pt、9 页，代理回调返回成功。与 Windows 导出的逐页对比在 T1521 中进行。
 - 完成通知：原型中 `delegate` 传 nil，只能等文件出现。正式实现用 `objc2::define_class!` 定义一个只实现 `printOperationDidRun:success:contextInfo:` 的代理对象，在回调中发送结果，沿用 `pdf/mod.rs` 现有的 60 秒超时。
 
 ### T1504 程序坞“退出”：为 tao 应用代理补 `applicationShouldTerminate:`
