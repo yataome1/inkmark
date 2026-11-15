@@ -1,12 +1,12 @@
 # Inkmark 示例文档
 
-欢迎使用 **Inkmark** —— 一个本地 Markdown 编辑器。把光标移到任意元素上即可看到它的 Markdown 源码；按 `Ctrl+/` 切换到源代码模式。
+欢迎使用 **Inkmark** —— 一个本地 Markdown 编辑器。把光标移到任意元素上即可看到它的 Markdown 源码；按 `Ctrl+/`（Mac 上为 `⌘/`）切换到源代码模式。
 
 [TOC]
 
 ## 文本样式
 
-**加粗**、*斜体*、<u>下划线</u>、~~删除线~~、`行内代码`、==高亮==，以及一个[链接](https://github.com/yataome1/inkmark)（按住 Ctrl 单击打开）。
+**加粗**、*斜体*、<u>下划线</u>、~~删除线~~、`行内代码`、==高亮==，以及一个[链接](https://github.com/yataome1/inkmark)（按住 Ctrl 单击打开，Mac 上为 ⌘）。
 
 > 引用块：写作的关键是减少干扰。
 >

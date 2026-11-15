@@ -14,27 +14,27 @@
     if (mermaid) top.push({ label: '复制图表源码', command: 'copy-mermaid' }, { label: '复制为图片', command: 'copy-mermaid-image' });
     return [
       ...(top.length ? [...top, sep] : []),
-      { label: '撤销', shortcut: 'Ctrl+Z', command: 'undo', disabled: readOnly || !canUndo },
-      { label: '重做', shortcut: 'Ctrl+Y', command: 'redo', disabled: readOnly || !canRedo },
+      { label: '撤销', shortcut: 'Mod+Z', command: 'undo', disabled: readOnly || !canUndo },
+      { label: '重做', shortcut: 'Mod+Y', command: 'redo', disabled: readOnly || !canRedo },
       sep,
-      { label: '剪切', shortcut: 'Ctrl+X', command: 'cut', disabled: readOnly || !hasSelection },
-      { label: '复制', shortcut: 'Ctrl+C', command: 'copy', disabled: !hasSelection },
-      { label: '粘贴', shortcut: 'Ctrl+V', command: 'paste', disabled: readOnly },
+      { label: '剪切', shortcut: 'Mod+X', command: 'cut', disabled: readOnly || !hasSelection },
+      { label: '复制', shortcut: 'Mod+C', command: 'copy', disabled: !hasSelection },
+      { label: '粘贴', shortcut: 'Mod+V', command: 'paste', disabled: readOnly },
       sep,
-      { label: '全选', shortcut: 'Ctrl+A', command: 'select-all' },
+      { label: '全选', shortcut: 'Mod+A', command: 'select-all' },
     ];
   }
 
   /** 输入框菜单（FR-1404） */
   function inputItems({ hasSelection, readOnly }) {
     return [
-      { label: '撤销', shortcut: 'Ctrl+Z', command: 'undo', disabled: readOnly },
+      { label: '撤销', shortcut: 'Mod+Z', command: 'undo', disabled: readOnly },
       sep,
-      { label: '剪切', shortcut: 'Ctrl+X', command: 'cut', disabled: readOnly || !hasSelection },
-      { label: '复制', shortcut: 'Ctrl+C', command: 'copy', disabled: !hasSelection },
-      { label: '粘贴', shortcut: 'Ctrl+V', command: 'paste', disabled: readOnly },
+      { label: '剪切', shortcut: 'Mod+X', command: 'cut', disabled: readOnly || !hasSelection },
+      { label: '复制', shortcut: 'Mod+C', command: 'copy', disabled: !hasSelection },
+      { label: '粘贴', shortcut: 'Mod+V', command: 'paste', disabled: readOnly },
       sep,
-      { label: '全选', shortcut: 'Ctrl+A', command: 'select-all' },
+      { label: '全选', shortcut: 'Mod+A', command: 'select-all' },
     ];
   }
 
@@ -43,22 +43,22 @@
 
   /**
    * @param {{ host: HTMLElement, editor: () => object, readOnly: () => boolean, openLink: (url: string) => void,
-   *   pasteImages: (files: File[]) => void, onStatus: (text: string) => void }} o
+   *   pasteImages: (files: File[]) => void, onStatus: (text: string) => void, nativePaste?: () => Promise<void> }} o
+   *   nativePaste：macOS 上“粘贴”交给系统（与 ⌘V 相同），避免 WebKit 读剪贴板时弹出确认按钮（specs/015）
    */
-  function attach({ host, editor, readOnly, openLink, pasteImages, onStatus }) {
+  function attach({ host, editor, readOnly, openLink, pasteImages, onStatus, nativePaste }) {
     const show = (x, y, items, run) =>
       ContextMenu.show(
         x,
         y,
         items.map((i) => (i === sep ? i : { ...i, action: () => run(i.command) })),
       );
+    // fn 须同步调用：剪贴板写入要在点击的同一时刻发生（WebKit，specs/015 T1521）
     const guarded = (fn, done) =>
-      Promise.resolve()
-        .then(fn)
-        .then(
-          () => done && onStatus(done),
-          (e) => onStatus(`操作失败：${e.message || e}`),
-        );
+      new Promise((resolve) => resolve(fn())).then(
+        () => done && onStatus(done),
+        (e) => onStatus(`操作失败：${e.message || e}`),
+      );
     const writeText = (text, done) => guarded(() => navigator.clipboard.writeText(text), done);
 
     async function pasteIntoEditor() {
@@ -72,13 +72,16 @@
       editor().pasteText(await navigator.clipboard.readText());
     }
 
-    async function copyMermaidImage(el) {
+    /** 先同步调用 clipboard.write，图片以 Promise 交给剪贴板（WebKit 要求，见 guarded） */
+    function copyMermaidImage(el) {
       const theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
-      const svg = await Render.renderMermaid(PLAIN_LABELS + el.dataset.source, theme);
       const { width, height } = (el.querySelector('svg') || el).getBoundingClientRect();
       const size = { clientWidth: Math.round(width * 2), clientHeight: Math.round(height * 2) };
-      const png = await ImageMenu.toPng(new TextEncoder().encode(svg), 'svg', size, getComputedStyle(host).backgroundColor);
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      const background = getComputedStyle(host).backgroundColor;
+      const png = Render.renderMermaid(PLAIN_LABELS + el.dataset.source, theme).then((svg) =>
+        ImageMenu.toPng(new TextEncoder().encode(svg), 'svg', size, background),
+      );
+      return navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
     }
 
     function editorMenu(x, y, target) {
@@ -108,7 +111,7 @@
           redo: () => ed.redo(),
           cut: () => document.execCommand('cut'), // 由编辑器自己的剪贴板处理，与 Ctrl+X 相同
           copy: () => document.execCommand('copy'),
-          paste: () => guarded(pasteIntoEditor),
+          paste: () => guarded(nativePaste || pasteIntoEditor),
           'select-all': () => ed.selectAll(),
         };
         run[cmd]();
@@ -121,6 +124,7 @@
         input.focus();
         if (cmd === 'select-all') return input.select();
         if (cmd !== 'paste') return document.execCommand(cmd);
+        if (nativePaste) return guarded(nativePaste);
         guarded(async () => {
           input.setRangeText(await navigator.clipboard.readText(), input.selectionStart, input.selectionEnd, 'end');
           input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -150,7 +154,7 @@
         const at = keyboard && editor().view.coordsAtPos(editor().view.state.selection.main.head);
         editorMenu(at ? at.left : e.clientX, at ? at.bottom : e.clientY, keyboard ? null : e.target);
       } else if (input) inputMenu(e.clientX, e.clientY, input);
-      else if (text) show(e.clientX, e.clientY, [{ label: '复制', shortcut: 'Ctrl+C', command: 'copy' }], () => writeText(text));
+      else if (text) show(e.clientX, e.clientY, [{ label: '复制', shortcut: 'Mod+C', command: 'copy' }], () => writeText(text));
       else return; // 不显示菜单；发布版的内核菜单已关闭（FR-1401）
       e.preventDefault();
     });

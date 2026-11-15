@@ -1,25 +1,27 @@
 //! Inkmark 后端：窗口、单实例、菜单、文件与设置命令（specs/002-tauri-migration/plan.md）。
 
 mod bundled;
-mod clipboard;
 mod fileops;
 mod menu;
 mod pdf;
 mod settings;
+mod sys;
+#[cfg(windows)]
 mod webview;
 
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State, Theme, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, Theme, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 const REPO_URL: &str = "https://github.com/yataome1/inkmark";
 
 struct AppState {
     settings: Mutex<settings::Settings>,
-    initial_files: Mutex<Vec<String>>,
+    /// 前端就绪前收到的待打开文件；`app_ready` 取走后为 None，之后的文件直接发给前端
+    initial_files: Mutex<Option<Vec<String>>>,
     /// 当前文件是否已收藏、当前文件能否收藏（已保存），决定“文件”菜单的文字与可用状态
     favorite_menu: Mutex<(bool, bool)>,
     tab_menu: Mutex<menu::TabMenu>,
@@ -93,9 +95,75 @@ fn theme_of(name: &str) -> Option<Theme> {
 
 // ---------------------------------------------------------------- 命令（IPC 契约见 plan.md）
 
+#[derive(Serialize)]
+struct Ready {
+    files: Vec<String>,
+    /// "windows" | "macos"：前端据此决定快捷键与路径写法（specs/015）
+    os: &'static str,
+}
+
 #[tauri::command]
-fn app_ready(state: State<AppState>) -> Vec<String> {
-    std::mem::take(&mut *state.initial_files.lock().unwrap())
+fn app_ready(state: State<AppState>) -> Ready {
+    Ready {
+        files: state.initial_files.lock().unwrap().take().unwrap_or_default(),
+        os: std::env::consts::OS,
+    }
+}
+
+/// 打开文件：前端未就绪时暂存，由 `app_ready` 返回；已就绪时显示窗口并发给前端（FR-002、FR-1503）
+/// 冷启动时 macOS 在 setup 之前就送来要打开的文件（访达双击、“打开方式”），此时还没有 AppState；
+/// 先放这里，setup 时并入 `initial_files`
+static EARLY_FILES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn open_files(app: &AppHandle, files: Vec<String>) {
+    if files.is_empty() {
+        return;
+    }
+    let Some(state) = app.try_state::<AppState>() else {
+        EARLY_FILES.lock().unwrap().extend(files);
+        return;
+    };
+    let mut pending = state.initial_files.lock().unwrap();
+    if let Some(list) = pending.as_mut() {
+        list.extend(files);
+        return;
+    }
+    drop(pending);
+    show_main_window(app);
+    let _ = app.emit_to("main", "open-file", files);
+}
+
+fn show_main_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    sys::set_main_closed(false);
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
+}
+
+/// macOS 关闭窗口只隐藏，程序留在程序坞（FR-1508）；前端已完成未保存确认
+#[tauri::command]
+fn hide_main_window(window: tauri::WebviewWindow) -> CmdResult<()> {
+    #[cfg(target_os = "macos")]
+    sys::set_main_closed(true);
+    window.hide().map_err(err)
+}
+
+/// macOS 右键菜单“粘贴”：与 ⌘V 相同，不弹出 WebKit 的确认按钮（specs/015）。同步命令在主线程执行
+#[tauri::command]
+fn paste_native() -> CmdResult<()> {
+    #[cfg(target_os = "macos")]
+    return sys::paste();
+    #[cfg(not(target_os = "macos"))]
+    Err("仅 macOS 使用".into())
+}
+
+/// 前端完成未保存确认后退出程序（FR-1508，宪章 IV）
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    app.exit(0);
 }
 
 #[tauri::command]
@@ -161,47 +229,14 @@ fn reveal_path(app: AppHandle, path: String) -> CmdResult<()> {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AppInfo {
     version: String,
     tauri: &'static str,
-    webview2: Option<String>,
-    windows: Option<String>,
-}
-
-#[repr(C)]
-struct OsVersionInfo {
-    size: u32,
-    major: u32,
-    minor: u32,
-    build: u32,
-    platform: u32,
-    service_pack: [u16; 128],
-}
-
-#[link(name = "ntdll")]
-unsafe extern "system" {
-    fn RtlGetVersion(info: *mut OsVersionInfo) -> i32;
-}
-
-fn windows_version() -> Option<String> {
-    let mut info = OsVersionInfo {
-        size: std::mem::size_of::<OsVersionInfo>() as u32,
-        major: 0,
-        minor: 0,
-        build: 0,
-        platform: 0,
-        service_pack: [0; 128],
-    };
-    // SAFETY: info 是按 OSVERSIONINFOW 布局初始化的有效结构，size 已设置
-    if unsafe { RtlGetVersion(&mut info) } != 0 {
-        return None;
-    }
-    let name = if info.build >= 22000 {
-        "11".to_string()
-    } else {
-        info.major.to_string()
-    };
-    Some(format!("Windows {name} (内部版本 {})", info.build))
+    /// 网页内核名称与版本：Windows 为 WebView2，macOS 为 WebKit（specs/015）
+    webview_name: &'static str,
+    webview: Option<String>,
+    os: Option<String>,
 }
 
 #[tauri::command]
@@ -209,8 +244,13 @@ fn app_info(app: AppHandle) -> AppInfo {
     AppInfo {
         version: app.package_info().version.to_string(),
         tauri: tauri::VERSION,
-        webview2: tauri::webview_version().ok(),
-        windows: windows_version(),
+        webview_name: if cfg!(target_os = "macos") {
+            "WebKit"
+        } else {
+            "WebView2"
+        },
+        webview: tauri::webview_version().ok(),
+        os: sys::os_version(),
     }
 }
 
@@ -322,8 +362,7 @@ fn read_image(app: AppHandle, path: String) -> CmdResult<tauri::ipc::Response> {
 #[tauri::command]
 fn copy_image_file(app: AppHandle, window: tauri::WebviewWindow, path: String) -> CmdResult<()> {
     let file = found_image(&app, &path)?;
-    let owner = window.hwnd().map_err(err)?;
-    clipboard::put_files(owner.0.cast(), &[&file])
+    sys::put_files(&window, &[&file])
 }
 
 /// 图片另存为：只写入图片扩展名的目标；与原图相同时不操作
@@ -531,14 +570,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             // FR-002：第二次启动时把文件交给已运行实例
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.unminimize();
-                let _ = win.set_focus();
-            }
-            let files = files_from_args(&argv, Path::new(&cwd));
-            if !files.is_empty() {
-                let _ = app.emit_to("main", "open-file", files);
-            }
+            show_main_window(app);
+            open_files(app, files_from_args(&argv, Path::new(&cwd)));
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -571,6 +604,9 @@ pub fn run() {
             set_settings,
             export_html,
             export_pdf,
+            hide_main_window,
+            quit_app,
+            paste_native,
         ])
         .on_menu_event(|app, e| on_menu(app, e.id().as_ref()))
         .setup(|app| {
@@ -581,12 +617,18 @@ pub fn run() {
             let cwd = std::env::current_dir().unwrap_or_default();
             app.manage(AppState {
                 settings: Mutex::new(settings),
-                initial_files: Mutex::new(files_from_args(&args, &cwd)),
+                initial_files: Mutex::new(Some(
+                    files_from_args(&args, &cwd)
+                        .into_iter()
+                        .chain(std::mem::take(&mut *EARLY_FILES.lock().unwrap()))
+                        .collect(),
+                )),
                 favorite_menu: Mutex::new((false, false)),
                 tab_menu: Mutex::new(menu::TabMenu::default()),
             });
 
             let handle = app.handle().clone();
+            #[cfg_attr(not(windows), allow(unused_variables))]
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Inkmark")
                 .inner_size(1200.0, 800.0)
@@ -594,13 +636,19 @@ pub fn run() {
                 .theme(theme)
                 // 宪章 V：窗口不可被导航离开应用页面；http(s) 链接交给系统浏览器
                 .on_navigation(move |url| {
-                    let internal = url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost");
+                    // macOS 上 `tauri dev` 由内置开发服务器提供页面（127.0.0.1:1430），只在调试构建中放行
+                    let dev_server = cfg!(debug_assertions)
+                        && url.scheme() == "http"
+                        && url.host_str() == Some("127.0.0.1")
+                        && url.port() == Some(1430);
+                    let internal = url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost") || dev_server;
                     if !internal && matches!(url.scheme(), "http" | "https") {
                         let _ = handle.opener().open_url(url.as_str(), None::<&str>);
                     }
                     internal
                 })
                 .build()?;
+            #[cfg(windows)]
             webview::configure(&win);
             app.set_menu(menu::build(app.handle())?)?;
             let (images, _) = image_dir(app.handle());
@@ -608,10 +656,32 @@ pub fn run() {
                 let _ = app.asset_protocol_scope().allow_directory(&images, false);
             }
             refresh_menu(app.handle());
+            #[cfg(target_os = "macos")]
+            sys::install_terminate_hook(app.handle());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Inkmark");
+        .build(tauri::generate_context!())
+        .expect("error while running Inkmark")
+        .run(on_run_event);
+}
+
+/// macOS：访达 / 程序坞打开文件、点击程序坞图标（FR-1503、FR-1508）
+fn on_run_event(app: &AppHandle, event: RunEvent) {
+    match event {
+        #[cfg(target_os = "macos")]
+        RunEvent::Opened { urls } => {
+            let files = urls
+                .iter()
+                .filter_map(|u| u.to_file_path().ok())
+                .filter(|p| fileops::is_markdown(p) && p.is_file())
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            open_files(app, files);
+        }
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => show_main_window(app),
+        _ => {}
+    }
 }
 
 #[cfg(test)]

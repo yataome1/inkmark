@@ -1,7 +1,19 @@
 // 纯函数：标签的路径比较与显示名称（specs/008）。浏览器中挂到 window.TabUtils，Node 中供测试 require。
 (function (root) {
-  /** 统一为反斜杠并解析 . 和 ..，保留原大小写 */
-  function normalizePath(p) {
+  /** 浏览器中取当前平台；Node 测试中默认 Windows，可显式传入（specs/015） */
+  const osOf = (os) => os || (root.PlatformKeys ? root.PlatformKeys.currentOs() : 'windows');
+  const sepOf = (os) => (osOf(os) === 'macos' ? '/' : '\\');
+
+  /** Windows 统一为反斜杠，macOS 为 `/`；解析 . 和 ..，保留原大小写 */
+  function normalizePath(p, os) {
+    if (osOf(os) === 'macos') {
+      const out = [];
+      for (const seg of p.split('/')) {
+        if (seg === '..') out.pop();
+        else if (seg && seg !== '.') out.push(seg);
+      }
+      return '/' + out.join('/');
+    }
     const unc = /^[\\/]{2}/.test(p);
     const out = [];
     for (const seg of p.replace(/\//g, '\\').split('\\')) {
@@ -14,10 +26,10 @@
     return (unc ? '\\\\' : '') + out.join('\\');
   }
 
-  /** 同一文件的比较键（Windows 路径不区分大小写） */
-  const pathKey = (p) => normalizePath(p).toLowerCase();
+  /** 同一文件的比较键（Windows 与 macOS 默认的 APFS 都不区分大小写） */
+  const pathKey = (p, os) => normalizePath(p, os).toLowerCase();
 
-  const segments = (p) => normalizePath(p).split('\\');
+  const segments = (p) => normalizePath(p).split(sepOf()).filter(Boolean);
 
   /** 同名文件取能区分彼此的最少上级目录，返回与 paths 等长的目录提示；路径为 null 或不重名时为空串 */
   function hints(paths) {
@@ -33,7 +45,7 @@
       const dirs = group.map((i) => segments(paths[i]).slice(0, -1));
       const longest = Math.max(...dirs.map((d) => d.length));
       for (let depth = 1; depth <= longest; depth++) {
-        const suffix = dirs.map((d) => d.slice(-depth).join('\\'));
+        const suffix = dirs.map((d) => d.slice(-depth).join(sepOf()));
         if (new Set(suffix.map((s) => s.toLowerCase())).size === group.length || depth === longest) {
           group.forEach((i, k) => (out[i] = suffix[k]));
           break;

@@ -3,6 +3,7 @@
 'use strict';
 
 (function (root) {
+  const keyLabel = (combo) => (root.PlatformKeys ? root.PlatformKeys.label(combo, root.PlatformKeys.currentOs()) : combo);
   const DRAG_THRESHOLD = 4;
   const NARROW_WIDTH = 130; // 平均宽度低于此值时，未激活标签的关闭按钮只在悬停时显示（US3-13）
   const EDGE = 24; // 拖到标签栏边缘时自动滚动
@@ -22,7 +23,7 @@
     const add = document.createElement('button');
     add.className = 'tab-add';
     add.textContent = '+';
-    add.title = '新建标签 (Ctrl+N)';
+    add.title = `新建标签 (${keyLabel('Mod+N')})`;
     add.setAttribute('aria-label', '新建标签');
     add.addEventListener('click', onNew);
     bar.append(strip, add);
@@ -132,7 +133,7 @@
       close.className = 'tab-close';
       close.tabIndex = -1;
       close.textContent = '×';
-      close.title = '关闭标签 (Ctrl+W)';
+      close.title = `关闭标签 (${keyLabel('Mod+W')})`;
       close.setAttribute('aria-label', '关闭标签');
       close.addEventListener('click', (e) => {
         e.stopPropagation();

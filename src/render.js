@@ -153,12 +153,19 @@
   }
 
   /** 相对路径按文档目录解析为绝对路径；网络、data、blob 地址原样返回（返回 url），无法解析时返回 null */
-  function resolveImage(src, docDir) {
+  /** os：'windows' | 'macos'，浏览器中默认当前平台；Windows 盘符路径在 macOS 上无法解析，按找不到处理（specs/015） */
+  function resolveImage(src, docDir, os = root.PlatformKeys ? root.PlatformKeys.currentOs() : 'windows') {
+    const mac = os === 'macos';
     if (/^(https?:|data:|blob:)/i.test(src)) return { url: src };
-    if (/^file:/i.test(src)) return { path: decodeURIComponent(new URL(src).pathname).replace(/^\/([A-Za-z]:)/, '$1') };
-    if (/^[A-Za-z]:[\\/]/.test(src)) return { path: src };
+    if (/^file:/i.test(src)) {
+      const path = decodeURIComponent(new URL(src).pathname);
+      if (mac) return /^\/[A-Za-z]:/.test(path) ? null : { path };
+      return { path: path.replace(/^\/([A-Za-z]:)/, '$1') };
+    }
+    if (/^[A-Za-z]:[\\/]/.test(src)) return mac ? null : { path: src };
+    if (mac && src.startsWith('/')) return { path: src };
     if (!docDir) return null;
-    const out = docDir.replace(/\\/g, '/').split('/');
+    const out = mac ? docDir.split('/') : docDir.replace(/\\/g, '/').split('/');
     let rel = src;
     try {
       rel = decodeURIComponent(src);
@@ -169,7 +176,7 @@
       if (seg === '..') out.pop();
       else if (seg && seg !== '.') out.push(seg);
     }
-    return { path: out.join('\\') };
+    return { path: out.join(mac ? '/' : '\\') };
   }
 
   const api = { renderMath, renderInline, renderDocument, highlightHtml, htmlToRanges, renderMermaid, resolveImage };

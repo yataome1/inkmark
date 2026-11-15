@@ -91,45 +91,12 @@ pub fn list_dir(dir: &Path) -> io::Result<Vec<Entry>> {
     Ok(out)
 }
 
-// SHA-256 由 Windows CNG 计算，不引入依赖（specs/011 plan）
-#[link(name = "bcrypt")]
-unsafe extern "system" {
-    fn BCryptHash(
-        algorithm: usize,
-        secret: *const u8,
-        secret_len: u32,
-        input: *const u8,
-        input_len: u32,
-        output: *mut u8,
-        output_len: u32,
-    ) -> i32;
-}
-const BCRYPT_SHA256_ALG_HANDLE: usize = 0x41;
-
-pub fn sha256(bytes: &[u8]) -> io::Result<[u8; 32]> {
-    let len = u32::try_from(bytes.len()).map_err(|_| io::Error::other("图片过大"))?;
-    let mut out = [0u8; 32];
-    // SAFETY: 输入、输出指针与长度一致；SHA-256 伪句柄由系统提供，无需打开或释放
-    let status = unsafe {
-        BCryptHash(
-            BCRYPT_SHA256_ALG_HANDLE,
-            std::ptr::null(),
-            0,
-            bytes.as_ptr(),
-            len,
-            out.as_mut_ptr(),
-            32,
-        )
-    };
-    if status != 0 {
-        return Err(io::Error::other(format!("计算哈希失败：{status:#x}")));
-    }
-    Ok(out)
-}
-
 /// 内容哈希名：SHA-256 前 128 位的十六进制 + 小写扩展名（FR-1102）
 pub fn hash_name(bytes: &[u8], ext: &str) -> io::Result<String> {
-    let hex: String = sha256(bytes)?[..16].iter().map(|b| format!("{b:02x}")).collect();
+    let hex: String = crate::sys::sha256(bytes)?[..16]
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
     Ok(format!("{hex}.{}", ext.to_ascii_lowercase()))
 }
 
@@ -245,9 +212,14 @@ pub fn encode_segment(seg: &str) -> String {
         .collect()
 }
 
-/// Windows 路径 → `file:///C:/a%20b/c.png`
+/// Windows 路径 → `file:///C:/a%20b/c.png`；macOS 路径 → `file:///Users/a%20b/c.png`（specs/015）
 pub fn file_url(p: &Path) -> String {
-    let s = p.to_string_lossy().replace('\\', "/");
+    let raw = p.to_string_lossy();
+    if let Some(rest) = raw.strip_prefix('/') {
+        let segs: Vec<String> = rest.split('/').map(encode_segment).collect();
+        return format!("file:///{}", segs.join("/"));
+    }
+    let s = raw.replace('\\', "/");
     let mut out = String::from("file:///");
     for (i, seg) in s.split('/').enumerate() {
         if i > 0 {
@@ -336,7 +308,11 @@ mod tests {
 
     #[test]
     fn sha256_matches_known_vector() {
-        let hex: String = sha256(b"abc").unwrap().iter().map(|b| format!("{b:02x}")).collect();
+        let hex: String = crate::sys::sha256(b"abc")
+            .unwrap()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         assert_eq!(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     }
 
@@ -412,5 +388,9 @@ owherecat.png"
     #[test]
     fn file_url_encodes() {
         assert_eq!(file_url(Path::new(r"C:\a b\中.png")), "file:///C:/a%20b/%E4%B8%AD.png");
+        assert_eq!(
+            file_url(Path::new("/Users/a b/中.png")),
+            "file:///Users/a%20b/%E4%B8%AD.png"
+        );
     }
 }

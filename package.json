@@ -1,16 +1,17 @@
 {
   "name": "inkmark",
   "productName": "Inkmark",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
-  "description": "An offline-first local Markdown viewer & editor for Windows",
+  "description": "An offline-first local Markdown viewer & editor for Windows and macOS",
   "scripts": {
     "start": "tauri dev",
     "vendor": "node scripts/vendor.mjs",
     "test": "node --test \"test/**/*.test.js\"",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write . && eslint --fix .",
-    "dist": "tauri build"
+    "dist": "tauri build",
+    "dist:mac": "tauri build --target universal-apple-darwin --bundles app,dmg"
   },
   "keywords": [
     "markdown",

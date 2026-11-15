@@ -1,6 +1,6 @@
 # Inkmark 项目宪章 (Constitution)
 
-版本: 1.3.0 | 批准日期: 2026-11-06 | 最近修订: 2026-11-10
+版本: 1.4.0 | 批准日期: 2026-11-06 | 最近修订: 2026-11-14
 
 本宪章约束 Inkmark 的所有规格、设计与实现。规格 (spec)、计划 (plan)、任务 (tasks) 与代码如与本宪章冲突，以本宪章为准。
 
@@ -25,11 +25,11 @@ Inkmark 是本地工具：打开、编辑、保存、渲染（含数学公式、
 只实现规格中列出的需求；不预留扩展点、不加未被要求的配置项。优先使用成熟库（Tauri、CodeMirror）而非自研。
 
 ### VII. 轻量
-Inkmark 是小工具：安装包 ≤ 10MB，免安装版 ≤ 15MB，由 CI 检查。引入新依赖或新的随包资源时，须在 plan 中说明对体积的影响；只打包实际用到的资源。
+Inkmark 是小工具：安装包（Windows 安装程序、macOS `.dmg`）≤ 10MB，Windows 免安装版 ≤ 15MB，由 CI 检查。引入新依赖或新的随包资源时，须在 plan 中说明对体积的影响；只打包实际用到的资源。
 
 ## 技术约束
-- 目标平台：Windows 10 / 11 x64，以 Windows 11 为主要测试环境；产物为 NSIS 安装包与免安装单文件 exe。
-- 运行时：Tauri 2 + 系统 WebView2（后端 Rust，前端原生 JS，无前端框架；应用代码不经打包，第三方库在 vendor 阶段由 esbuild 打包）。
+- 目标平台：Windows 10 / 11 x64，以 Windows 11 为主要测试环境，产物为 NSIS 安装包与免安装单文件 exe；macOS 12 及以上（Apple 芯片与 Intel 芯片），产物为通用 `.dmg`。两个平台共用同一套规格、代码与版本号，平台差异只在必要处隔离。
+- 运行时：Tauri 2 + 系统 WebView（Windows 为 WebView2，macOS 为 WKWebView）（后端 Rust，前端原生 JS，无前端框架；应用代码不经打包，第三方库在 vendor 阶段由 esbuild 打包）。
 - 编辑内核：CodeMirror 6（编辑状态即 Markdown 原文，即时渲染由装饰实现）。
 
 ## 开发流程
@@ -49,3 +49,4 @@ Inkmark 是小工具：安装包 ≤ 10MB，免安装版 ≤ 15MB，由 CI 检�
 | 1.1.0 | 2026-11-06 | 新增原则 VII 轻量；运行时由 Electron 改为 Tauri 2 + WebView2；原则 V 改为与运行时无关的表述 | 002-tauri-migration：0.1.0 安装包约 120MB，用户期望 10MB 以下 |
 | 1.2.0 | 2026-11-09 | 编辑内核由 Vditor 改为 CodeMirror 6；第三方库允许在 vendor 阶段打包 | 006-codemirror-core：Vditor 撤销整篇重绘、打开即改写文件 |
 | 1.3.0 | 2026-11-10 | 目标平台由 Windows 11 x64 扩展为 Windows 10 / 11 x64，以 Windows 11 为主要测试环境 | 开源准备：Rust 工具链与 WebView2 的最低要求为 Windows 10，README 如实说明支持范围 |
+| 1.4.0 | 2026-11-14 | 目标平台增加 macOS 12+（通用 `.dmg`）；运行时改为系统 WebView；原则 VII 的安装包上限覆盖 `.dmg` | 015-macos-support：research.md 实测通用 `.dmg` 原型 7.32MB |

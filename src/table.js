@@ -143,7 +143,7 @@
     const edit = (transform, target) => () => applyEdit(wrap, transform, target);
     return [
       { label: '上方插入行', disabled: r === 0, action: edit((x) => T.insertRow(x, r), { r, c }) },
-      { label: '下方插入行', shortcut: 'Ctrl+Enter', action: edit((x) => T.insertRow(x, r + 1), { r: r + 1, c }) },
+      { label: '下方插入行', shortcut: 'Mod+Enter', action: edit((x) => T.insertRow(x, r + 1), { r: r + 1, c }) },
       { label: '左侧插入列', action: edit((x) => T.insertCol(x, c), { r, c }) },
       { label: '右侧插入列', action: edit((x) => T.insertCol(x, c + 1), { r, c: c + 1 }) },
       '-',
@@ -154,7 +154,7 @@
       '-',
       {
         label: '删除行',
-        shortcut: 'Ctrl+Shift+Backspace',
+        shortcut: 'Mod+Shift+Backspace',
         disabled: !T.canDeleteRow(m, r),
         action: edit((x) => T.deleteRow(x, r), { r: Math.min(r, last - 1), c }),
       },

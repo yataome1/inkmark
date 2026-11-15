@@ -26,7 +26,13 @@
   }
 
   window.inkmark = {
-    appReady: () => invoke('app_ready'),
+    /** 'windows' | 'macos'，由 appReady 设置（specs/015） */
+    os: 'windows',
+    async appReady() {
+      const { files, os } = await invoke('app_ready');
+      window.inkmark.os = os;
+      return files;
+    },
     readFile: (path) => invoke('read_file', { path }),
     async openDialog() {
       const path = await T.dialog.open({ multiple: false, directory: false, filters: MD_FILTERS });
@@ -127,6 +133,12 @@
     toggleFullscreen: async () => win.setFullscreen(!(await win.isFullscreen())),
     setZoom: (scale) => webview.setZoom(scale),
     close: () => win.close(),
+    /** macOS：关闭窗口只隐藏，程序留在程序坞（FR-1508） */
+    hideWindow: () => invoke('hide_main_window'),
+    /** 已完成未保存确认后退出程序 */
+    quitApp: () => invoke('quit_app'),
+    /** macOS：右键菜单“粘贴”交给系统，与 ⌘V 相同 */
+    pasteNative: () => invoke('paste_native'),
     onCommand: (cb) => T.event.listen('command', (e) => cb(e.payload)),
     onOpenFile: (cb) => T.event.listen('open-file', (e) => cb(e.payload)),
     /** cb(event)：调用 event.preventDefault() 取消关闭 */

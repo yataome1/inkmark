@@ -1,4 +1,5 @@
-// 由 scripts/icon/*.svg 生成 src-tauri/icons 中 Windows 所需的图标：node scripts/icons.mjs
+// 由 scripts/icon/*.svg 生成 src-tauri/icons 中 Windows 与 macOS 所需的图标：node scripts/icons.mjs
+// macOS 只需 icon.icns（specs/015 T1516），取 tauri icon 默认输出中的该文件。
 // 48px 及以上用完整版，16–32px 用简化版；icon.ico 内含 16、24、32、48、64、256 六个尺寸（PNG 编码）。
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -58,5 +59,8 @@ fs.writeFileSync(
     [256, full[256]],
   ]),
 );
+const mac = path.join(tmp, 'mac');
+execSync(`npx tauri icon "${path.join(root, 'scripts', 'icon', 'inkmark.svg')}" -o "${mac}"`, { cwd: root, stdio: 'ignore' });
+fs.copyFileSync(path.join(mac, 'icon.icns'), path.join(out, 'icon.icns'));
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log(`icons → ${path.relative(root, out)}`);

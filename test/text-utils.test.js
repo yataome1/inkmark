@@ -61,3 +61,33 @@ test('applyEdits: 按位置替换，与顺序无关', () => {
   assert.equal(T.applyEdits(text, edits), '![a](file:///C:/i/1.png) 和 ![b](b.assets/2.png)');
   assert.equal(T.applyEdits(text, [...edits].reverse()), T.applyEdits(text, edits));
 });
+
+// ---------------------------------------------------------------- 路径（specs/015）
+
+test('路径：Windows 兼容两种斜杠', () => {
+  const os = 'windows';
+  assert.equal(T.basename('D:\\doc\\a.md', os), 'a.md');
+  assert.equal(T.basename('D:/doc/a.md', os), 'a.md');
+  assert.equal(T.dirname('D:\\doc\\a.md', os), 'D:\\doc');
+  assert.equal(T.joinPath('D:\\doc', 'a.html', os), 'D:\\doc\\a.html');
+  assert.equal(T.resolvePath('D:\\doc', '../img/a.png', os), 'D:\\img\\a.png');
+  assert.equal(T.resolvePath('D:\\doc', 'C:\\x.md', os), 'C:\\x.md');
+  assert.ok(T.isAbsolutePath('\\\\srv\\share', os));
+  assert.ok(!T.isAbsolutePath('/a.md', os));
+  assert.equal(T.fileUrl('C:\\a b\\中.png', os), 'file:///C:/a%20b/%E4%B8%AD.png');
+});
+
+test('路径：macOS 只以 / 分隔', () => {
+  const os = 'macos';
+  assert.equal(T.basename('/Users/a/x\\y.md', os), 'x\\y.md');
+  assert.equal(T.dirname('/Users/a/b.md', os), '/Users/a');
+  assert.equal(T.dirname('/b.md', os), '/');
+  assert.equal(T.joinPath('/', 'b.md', os), '/b.md');
+  assert.equal(T.joinPath('/Users/a', 'b.md', os), '/Users/a/b.md');
+  assert.equal(T.resolvePath('/Users/a/doc', '../img/a.png', os), '/Users/a/img/a.png');
+  assert.equal(T.resolvePath('/Users/a/doc', 'img\\a.png', os), '/Users/a/doc/img/a.png'); // Windows 写的相对路径
+  assert.equal(T.resolvePath('/Users/a', '/etc/x.md', os), '/etc/x.md');
+  assert.ok(T.isAbsolutePath('/a', os));
+  assert.ok(!T.isAbsolutePath('C:\\a', os));
+  assert.equal(T.fileUrl('/Users/a b/中.png', os), 'file:///Users/a%20b/%E4%B8%AD.png');
+});

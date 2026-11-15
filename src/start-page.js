@@ -3,8 +3,9 @@
 
 (function (root) {
   const MAX_FAVORITES = 5;
-  const basename = (p) => p.split(/[\\/]/).pop();
-  const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
+  const os = () => root.PlatformKeys.currentOs();
+  const basename = (p) => root.TextUtils.basename(p, os()); // specs/015
+  const dirname = (p) => root.TextUtils.dirname(p, os());
 
   function el(tag, className, text) {
     const node = document.createElement(tag);

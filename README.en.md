@@ -2,7 +2,7 @@
 
 <h1 align="center">Inkmark</h1>
 
-<p align="center">A local Markdown viewer &amp; editor · Windows 10 / 11 x64</p>
+<p align="center">A local Markdown viewer &amp; editor · Windows 10 / 11 x64 · macOS 12+</p>
 
 <p align="center">
   <a href="https://github.com/yataome1/inkmark/actions/workflows/ci.yml"><img src="https://github.com/yataome1/inkmark/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -17,7 +17,7 @@
 
 - **Live preview**: text is formatted as you type, and the Markdown markup appears where the cursor is; `Ctrl+/` switches to source mode
 - **Full syntax**: GFM tables, task lists, strikethrough, footnotes, `[TOC]`, ==highlight==, KaTeX math, Mermaid diagrams, code highlighting
-- **Small**: the installer is under 10 MB and uses the WebView2 runtime built into Windows
+- **Small**: the installer is under 10 MB and uses the system web engine (WebView2 on Windows, WebKit on macOS)
 - **Fully offline**: all rendering resources ship with the app; no network requests, no telemetry
 - **Tabs**: open several files at once, reorder by dragging, context menu, save all, restore last session's tabs on startup; a start page when no document is open
 - **Tables**: size picker, toolbar, context menu, shortcuts, drag rows and columns
@@ -36,17 +36,23 @@ Download from [Releases](https://github.com/yataome1/inkmark/releases):
 
 - `Inkmark-Setup-x.y.z-x64.exe` — installer (registers the `.md` file association)
 - `Inkmark-x.y.z-x64-portable.exe` — portable, a single file that runs without installation
+- `Inkmark-x.y.z-universal.dmg` — macOS, for both Apple silicon and Intel Macs
 
-System requirements:
+Windows system requirements:
 
 - 64-bit Windows 10 or Windows 11 (currently tested on Windows 11); Windows 7, 8 and 32-bit systems are not supported
 - WebView2 runtime: built into Windows 11 and usually installed with Edge on Windows 10; if it is missing, the installer downloads it
 
 > The installer is not code-signed. On first run Windows SmartScreen may show "Unknown publisher"; choose "Run anyway".
 
+macOS:
+
+- macOS 12 Monterey or later; open the `.dmg` and drag Inkmark to Applications
+- The app is not signed or notarized by Apple, so the first launch says the developer cannot be verified: close the message, then click "Open Anyway" in System Settings > Privacy & Security. On macOS 12–14 you can also Control-click Inkmark and choose "Open". You are only asked once
+
 ## Keyboard shortcuts
 
-Common shortcuts are listed below; press `F1` in the app to see all of them.
+Common shortcuts are listed below; press `F1` in the app to see all of them. On macOS use `⌘` instead of `Ctrl` (Replace is `⌥⌘F` and the shortcut list is `⇧⌘/`; the user guide lists the other differences).
 
 | Action | Shortcut |
 |---|---|
@@ -58,13 +64,14 @@ Common shortcuts are listed below; press `F1` in the app to see all of them.
 
 ## Building from source
 
-Requires Node.js, Rust (MSVC) and the Visual Studio C++ build tools; see [CONTRIBUTING.md](CONTRIBUTING.md) (in Chinese).
+Requires Node.js and Rust, plus the Visual Studio C++ build tools on Windows or the Xcode Command Line Tools on macOS; see [CONTRIBUTING.md](CONTRIBUTING.md) (in Chinese).
 
 ```bash
 npm install
 npm start        # run in development
 npm test         # unit tests
-npm run dist     # build the installer and the portable version
+npm run dist     # Windows: build the installer and the portable version
+npm run dist:mac # macOS: build the universal .dmg
 ```
 
 ## Project structure

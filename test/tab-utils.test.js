@@ -40,3 +40,9 @@ test('nextUntitled: 取未被占用的最小编号', () => {
   assert.equal(T.nextUntitled([]), 1);
   assert.equal(T.nextUntitled([1, 3]), 2);
 });
+
+test('normalizePath / pathKey：macOS（specs/015）', () => {
+  assert.equal(T.normalizePath('/Users/A/./c/../b.md', 'macos'), '/Users/A/b.md');
+  assert.equal(T.pathKey('/Users/a/B.md', 'macos'), T.pathKey('/users/A/b.md', 'macos'));
+  assert.notEqual(T.pathKey('/Users/a/b.md', 'macos'), T.pathKey('/Users/b.md', 'macos'));
+});
