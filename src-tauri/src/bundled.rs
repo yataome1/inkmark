@@ -103,5 +103,15 @@ mod tests {
             Path::new(r"C:\Users\a\AppData\Local\app\helper\demo.md")
         ));
         assert!(!contains(dir, Path::new(r"C:\Users\a\demo.md")));
+        // macOS 路径（specs/015）
+        let mac = Path::new("/Users/a/Library/Application Support/app/help");
+        assert!(contains(
+            mac,
+            Path::new("/Users/a/Library/Application Support/app/help/assets/x.png")
+        ));
+        assert!(!contains(
+            mac,
+            Path::new("/Users/a/Library/Application Support/app/helper/demo.md")
+        ));
     }
 }

@@ -13,7 +13,8 @@
     svg: 'image/svg+xml',
   };
   const extOf = (path) => path.split('.').pop().toLowerCase();
-  const basename = (p) => p.split(/[\\/]/).pop();
+  const os = () => root.PlatformKeys.currentOs();
+  const basename = (p) => root.TextUtils.basename(p, os()); // specs/015
 
   /** 画到画布再转 PNG：剪贴板只接受 image/png；动态 GIF 取第一帧，SVG 按显示尺寸（FR-1202）。
    *  background 为可选底色（specs/014 图表复制为图片） */
@@ -89,7 +90,11 @@
         '-',
         { label: '复制图片地址', action: action(() => navigator.clipboard.writeText(src), '已复制图片地址') },
         '-',
-        { label: '在资源管理器中显示', disabled: !file, action: action(() => api.revealPath(file), '') },
+        {
+          label: os() === 'macos' ? '在访达中显示' : '在资源管理器中显示',
+          disabled: !file,
+          action: action(() => api.revealPath(file), ''),
+        },
         { label: '用默认程序打开', disabled: !file, action: action(() => api.openImage(file), '') },
       ]);
     }

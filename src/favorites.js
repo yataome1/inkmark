@@ -4,8 +4,9 @@
 
 (function (root) {
   const DRAG_THRESHOLD = 4;
-  const basename = (p) => p.split(/[\\/]/).pop();
-  const parentName = (p) => basename(p.replace(/[\\/][^\\/]*$/, ''));
+  const os = () => root.PlatformKeys.currentOs();
+  const basename = (p) => root.TextUtils.basename(p, os()); // specs/015
+  const parentName = (p) => basename(root.TextUtils.dirname(p, os()));
 
   /**
    * @param {{

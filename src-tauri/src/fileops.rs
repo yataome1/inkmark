@@ -212,9 +212,14 @@ pub fn encode_segment(seg: &str) -> String {
         .collect()
 }
 
-/// Windows 路径 → `file:///C:/a%20b/c.png`
+/// Windows 路径 → `file:///C:/a%20b/c.png`；macOS 路径 → `file:///Users/a%20b/c.png`（specs/015）
 pub fn file_url(p: &Path) -> String {
-    let s = p.to_string_lossy().replace('\\', "/");
+    let raw = p.to_string_lossy();
+    if let Some(rest) = raw.strip_prefix('/') {
+        let segs: Vec<String> = rest.split('/').map(encode_segment).collect();
+        return format!("file:///{}", segs.join("/"));
+    }
+    let s = raw.replace('\\', "/");
     let mut out = String::from("file:///");
     for (i, seg) in s.split('/').enumerate() {
         if i > 0 {
@@ -383,5 +388,9 @@ owherecat.png"
     #[test]
     fn file_url_encodes() {
         assert_eq!(file_url(Path::new(r"C:\a b\中.png")), "file:///C:/a%20b/%E4%B8%AD.png");
+        assert_eq!(
+            file_url(Path::new("/Users/a b/中.png")),
+            "file:///Users/a%20b/%E4%B8%AD.png"
+        );
     }
 }

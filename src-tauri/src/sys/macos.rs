@@ -10,6 +10,7 @@ use std::ffi::{CStr, c_char, c_void};
 use std::io;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 
 unsafe extern "C" {
@@ -73,16 +74,26 @@ fn write_files(board: &NSPasteboard, paths: &[&Path]) -> Result<(), String> {
 // ---------------------------------------------------------------- 程序坞“退出”（FR-1508，research.md R8 T1504）
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
+/// 主窗口已由“关闭”隐藏（标签都已关闭、无未保存修改）。不能用窗口是否可见判断：
+/// ⌘H 隐藏程序、⌘M 最小化后窗口同样不可见，但文档仍开着。
+static MAIN_CLOSED: AtomicBool = AtomicBool::new(false);
+
+pub fn set_main_closed(closed: bool) {
+    MAIN_CLOSED.store(closed, Ordering::Relaxed);
+}
 
 /// NSTerminateCancel = 0，NSTerminateNow = 1
 extern "C-unwind" fn should_terminate(_this: &AnyObject, _sel: Sel, _sender: *mut AnyObject) -> usize {
     let Some(win) = APP.get().and_then(|app| app.get_webview_window("main")) else {
         return 1;
     };
-    if !win.is_visible().unwrap_or(false) {
+    if MAIN_CLOSED.load(Ordering::Relaxed) {
         return 1;
     }
-    // 窗口可见时可能有未保存的修改：取消本次退出，交给前端走与 ⌘Q 相同的确认流程
+    // 文档仍开着，可能有未保存的修改：取消本次退出，显示窗口，交给前端走与 ⌘Q 相同的确认流程
+    let _ = win.show();
+    let _ = win.unminimize();
+    let _ = win.set_focus();
     let _ = win.emit_to("main", "command", json!({ "cmd": "quit", "arg": null }));
     0
 }

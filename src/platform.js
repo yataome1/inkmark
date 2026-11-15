@@ -133,6 +133,10 @@
     toggleFullscreen: async () => win.setFullscreen(!(await win.isFullscreen())),
     setZoom: (scale) => webview.setZoom(scale),
     close: () => win.close(),
+    /** macOS：关闭窗口只隐藏，程序留在程序坞（FR-1508） */
+    hideWindow: () => invoke('hide_main_window'),
+    /** 已完成未保存确认后退出程序 */
+    quitApp: () => invoke('quit_app'),
     onCommand: (cb) => T.event.listen('command', (e) => cb(e.payload)),
     onOpenFile: (cb) => T.event.listen('open-file', (e) => cb(e.payload)),
     /** cb(event)：调用 event.preventDefault() 取消关闭 */

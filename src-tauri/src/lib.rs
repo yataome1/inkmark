@@ -127,6 +127,8 @@ fn open_files(app: &AppHandle, files: Vec<String>) {
 }
 
 fn show_main_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    sys::set_main_closed(false);
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.show();
         let _ = win.unminimize();
@@ -137,6 +139,8 @@ fn show_main_window(app: &AppHandle) {
 /// macOS 关闭窗口只隐藏，程序留在程序坞（FR-1508）；前端已完成未保存确认
 #[tauri::command]
 fn hide_main_window(window: tauri::WebviewWindow) -> CmdResult<()> {
+    #[cfg(target_os = "macos")]
+    sys::set_main_closed(true);
     window.hide().map_err(err)
 }
 
@@ -610,7 +614,12 @@ pub fn run() {
                 .theme(theme)
                 // 宪章 V：窗口不可被导航离开应用页面；http(s) 链接交给系统浏览器
                 .on_navigation(move |url| {
-                    let internal = url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost");
+                    // macOS 上 `tauri dev` 由内置开发服务器提供页面（127.0.0.1:1430），只在调试构建中放行
+                    let dev_server = cfg!(debug_assertions)
+                        && url.scheme() == "http"
+                        && url.host_str() == Some("127.0.0.1")
+                        && url.port() == Some(1430);
+                    let internal = url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost") || dev_server;
                     if !internal && matches!(url.scheme(), "http" | "https") {
                         let _ = handle.opener().open_url(url.as_str(), None::<&str>);
                     }

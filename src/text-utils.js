@@ -1,4 +1,4 @@
-// 纯函数：字数统计与大纲解析。浏览器中挂到 window.TextUtils，Node 中供测试 require。
+// 纯函数：字数统计、大纲解析、缩放与路径。浏览器中挂到 window.TextUtils，Node 中供测试 require。
 (function (root) {
   const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
   const CJK = /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/g;
@@ -74,7 +74,65 @@
     return out;
   }
 
-  const api = { countWords, parseHeadings, normalizeZoom, stepZoom, applyEdits };
+  // ---------------------------------------------------------------- 路径（specs/015 plan 设计要点 4）
+  // os 为 'windows'（`\`，兼容 `/`）或 'macos'（只有 `/`）；浏览器中由 PlatformKeys.currentOs() 取得。
+
+  const SEP = { windows: /[\\/]/, macos: /\// };
+  const sepOf = (os) => (os === 'macos' ? '/' : '\\');
+
+  const basename = (p, os) => p.split(SEP[os] || SEP.windows).pop();
+
+  function dirname(p, os) {
+    const parts = p.split(SEP[os] || SEP.windows);
+    parts.pop();
+    const dir = parts.join(sepOf(os));
+    return os === 'macos' && dir === '' && p.startsWith('/') ? '/' : dir;
+  }
+
+  /** Windows：盘符或 UNC；macOS：`/` 开头 */
+  const isAbsolutePath = (p, os) => (os === 'macos' ? p.startsWith('/') : /^([A-Za-z]:[\\/]|[\\/]{2})/.test(p));
+
+  const joinPath = (dir, name, os) => (dir.endsWith(sepOf(os)) ? dir + name : dir + sepOf(os) + name);
+
+  /** 相对路径按 base 目录解析（文档中的链接一律用 `/` 或 `\`），绝对路径原样返回 */
+  function resolvePath(base, rel, os) {
+    if (isAbsolutePath(rel, os)) return rel;
+    const split = (x) => (os === 'macos' ? x.split('/') : x.replace(/\\/g, '/').split('/'));
+    const out = split(base);
+    for (const seg of split(rel.replace(/\\/g, '/'))) {
+      if (seg === '..') {
+        if (out.length > 1) out.pop();
+      } else if (seg && seg !== '.') out.push(seg);
+    }
+    return out.join(sepOf(os));
+  }
+
+  /** 本地路径 → file 地址：`file:///C:/a%20b`、`file:///Users/a%20b` */
+  function fileUrl(p, os) {
+    const s = os === 'macos' ? p : p.replace(/\\/g, '/');
+    const abs = s.startsWith('/') ? s : '/' + s;
+    return (
+      'file://' +
+      abs
+        .split('/')
+        .map((seg, i) => (i === 1 && /^[A-Za-z]:$/.test(seg) ? seg : encodeURIComponent(seg)))
+        .join('/')
+    );
+  }
+
+  const api = {
+    countWords,
+    parseHeadings,
+    normalizeZoom,
+    stepZoom,
+    applyEdits,
+    basename,
+    dirname,
+    isAbsolutePath,
+    joinPath,
+    resolvePath,
+    fileUrl,
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TextUtils = api;
 })(this);

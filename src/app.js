@@ -21,28 +21,25 @@ const state = {
   typewriter: false,
 };
 let editor;
+/** 'windows' | 'macos'：快捷键与路径写法（specs/015） */
+const OS = PlatformKeys.currentOs();
 /** 快捷键显示文字（specs/015）：逻辑快捷键按平台转为 Ctrl+… 或 ⌘ 符号 */
-const keyLabel = (combo) => PlatformKeys.label(combo, PlatformKeys.currentOs());
+/** “在资源管理器中显示”按平台显示（specs/015 T1515） */
+const REVEAL_LABEL = OS === 'macos' ? '在访达中显示' : '在资源管理器中显示';
+const keyLabel = (combo) => PlatformKeys.label(combo, OS);
 const isTextInput = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
 
 // ---------------------------------------------------------------- 工具函数
 
-const basename = (p) => p.split(/[\\/]/).pop();
-const dirname = (p) => p.replace(/[\\/][^\\/]*$/, '');
+const basename = (p) => TextUtils.basename(p, OS);
+const dirname = (p) => TextUtils.dirname(p, OS);
+const joinPath = (dir, name) => TextUtils.joinPath(dir, name, OS);
 const tabTitle = (tab) =>
   tab.kind === 'start' ? '开始' : tab.path ? `${basename(tab.path)}${tab.readOnly ? ' · 只读' : ''}` : `未命名-${tab.untitledNo}`;
 const docName = () => tabTitle(tabs.current);
 const isMarkdownPath = (p) => /\.(md|markdown|mdown|txt)$/i.test(p);
 
-function resolvePath(base, rel) {
-  if (/^[A-Za-z]:[\\/]/.test(rel)) return rel;
-  const out = base.replace(/\\/g, '/').split('/');
-  for (const seg of rel.replace(/\\/g, '/').split('/')) {
-    if (seg === '..') out.pop();
-    else if (seg && seg !== '.') out.push(seg);
-  }
-  return out.join('\\');
-}
+const resolvePath = (base, rel) => TextUtils.resolvePath(base, rel, OS);
 
 function debounce(fn, ms) {
   let t;
@@ -446,7 +443,7 @@ function showTabMenu(tab, x, y) {
     { label: '重新打开关闭的标签', shortcut: 'Mod+Shift+T', disabled: !closedTabs.length, action: reopenTab },
     '-',
     { label: '复制文件路径', disabled: !tab.path, action: () => navigator.clipboard.writeText(tab.path) },
-    { label: '在资源管理器中显示', disabled: !tab.path, action: () => api.revealPath(tab.path) },
+    { label: REVEAL_LABEL, disabled: !tab.path, action: () => api.revealPath(tab.path) },
     { label: favorited ? '从收藏中移除' : '添加到收藏', disabled: !tab.path, action: () => favorites.toggle(tab.path, false) },
   ]);
 }
@@ -791,13 +788,7 @@ findbar.addEventListener('keydown', (e) => {
 
 // ---------------------------------------------------------------- 导出（FR-014）
 
-const fileUrl = (p) =>
-  'file:///' +
-  p
-    .replace(/\\/g, '/')
-    .split('/')
-    .map((seg, i) => (i === 0 ? seg : encodeURIComponent(seg)))
-    .join('/');
+const fileUrl = (p) => TextUtils.fileUrl(p, OS);
 
 /** 文档中的本地图片引用：[{ from, to, path }]；网络地址与无法解析的相对路径跳过 */
 function localImageRefs() {
@@ -824,7 +815,7 @@ async function localizeImages(html) {
 /** 导出可分享副本（FR-1106）：图片复制到 <文件名>.assets，地址改为相对路径，原文档不变 */
 async function exportShareCopy() {
   const name = state.path ? basename(state.path) : `${docName()}.md`;
-  const target = await api.askSavePath((state.path ? dirname(state.path) + '\\' : '') + name);
+  const target = await api.askSavePath(state.path ? joinPath(dirname(state.path), name) : name);
   if (!target) return;
   if (state.path && TabUtils.pathKey(target) === TabUtils.pathKey(state.path)) {
     alert('不能覆盖原文档，请选择其他位置或文件名。');
@@ -832,7 +823,7 @@ async function exportShareCopy() {
   }
   const refs = localImageRefs();
   const folder = `${basename(target).replace(/\.[^.]+$/, '')}.assets`;
-  if (refs.length && (await api.pathInfo([dirname(target) + '\\' + folder]))[0].exists && !(await api.confirmOverwrite(folder))) return;
+  if (refs.length && (await api.pathInfo([joinPath(dirname(target), folder)]))[0].exists && !(await api.confirmOverwrite(folder))) return;
   try {
     const results = await api.copyShareImages(
       target,
@@ -872,12 +863,12 @@ async function importImages() {
 
 async function exportAs(kind) {
   const name = state.path ? basename(state.path).replace(/\.\w+$/, '') : '未命名';
-  const defaultPath = (state.path ? dirname(state.path) + '\\' : '') + `${name}.${kind}`;
+  const defaultPath = state.path ? joinPath(dirname(state.path), `${name}.${kind}`) : `${name}.${kind}`;
   const body = await localizeImages(await Render.renderDocument(editor.getValue()));
   let out;
   if (kind === 'pdf') {
     // PDF 由临时 HTML 生成，需用 <base> 让相对图片指向原文档目录
-    const baseUrl = state.path ? new URL(`file:///${dirname(state.path).replace(/\\/g, '/')}/`).href : undefined;
+    const baseUrl = state.path ? `${fileUrl(dirname(state.path))}/` : undefined;
     out = await api.exportPdf(await ExportHtml.buildHtml({ title: name, body, baseUrl }), defaultPath);
   } else {
     out = await api.exportHtml(await ExportHtml.buildHtml({ title: name, body }), defaultPath);
@@ -924,7 +915,8 @@ const COMMANDS = {
   save: () => saveTab(tabs.current),
   'save-as': () => saveTab(tabs.current, true),
   'save-all': saveAll,
-  'close-tab': () => isStart() || closeTabs([tabs.current]),
+  // macOS：没有文档时 ⌘W 关闭窗口（FR-1508）
+  'close-tab': () => (isStart() ? OS === 'macos' && !documentTabs().length && api.close() : closeTabs([tabs.current])),
   'close-others': () => closeTabs(tabs.list.filter((t) => t !== tabs.current)),
   'close-all': () => closeTabs(documentTabs()),
   'reopen-tab': reopenTab,
@@ -961,7 +953,8 @@ const COMMANDS = {
   'zoom-out': () => setZoom(TextUtils.stepZoom(zoom, -1)),
   'zoom-reset': () => setZoom(1),
   theme: async (theme) => (state.settings = await api.setSettings({ theme })),
-  quit: () => api.close(),
+  // Windows 关闭窗口即退出；macOS 关闭窗口只隐藏，退出单独处理（程序坞“退出”也发此命令）
+  quit: OS === 'macos' ? quitApp : () => api.close(),
 };
 
 let zoom = 1;
@@ -978,7 +971,7 @@ let wheelZoom = 0;
 window.addEventListener(
   'wheel',
   (e) => {
-    if (!e.ctrlKey && !(e.metaKey && PlatformKeys.currentOs() === 'macos')) return;
+    if (!e.ctrlKey && !(e.metaKey && OS === 'macos')) return;
     e.preventDefault();
     // 页面缩放后浏览器按 CSS 像素报告，乘回缩放比例；取整避免 100/1.1*1.1 这类浮点误差
     const px = Math.round(e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1) * zoom);
@@ -1095,7 +1088,7 @@ const KEYMAP = PlatformKeys.keymap({
 window.addEventListener(
   'keydown',
   (e) => {
-    const hit = KEYMAP[PlatformKeys.eventCombo(e, PlatformKeys.currentOs())];
+    const hit = KEYMAP[PlatformKeys.eventCombo(e, OS)];
     if (!hit || !editor || dialogOpen()) return;
     if (hit[0].startsWith('table-') && !TableUi.isActive()) return; // 只在表格单元格内生效
     if (FORMAT[hit[0]] && (!modeElement().contains(e.target) || e.target.closest('.im-table'))) return;
@@ -1119,7 +1112,7 @@ function openLink(url) {
 editorEl.addEventListener(
   'click',
   (e) => {
-    if (!(PlatformKeys.currentOs() === 'macos' ? e.metaKey : e.ctrlKey)) return;
+    if (!(OS === 'macos' ? e.metaKey : e.ctrlKey)) return;
     const url = e.target.closest('[data-href]')?.dataset.href;
     if (!url) return;
     e.preventDefault();
@@ -1169,9 +1162,39 @@ $('#open-folder').addEventListener('click', () => run('open-folder'));
 api.onCommand(({ cmd, arg }) => run(cmd, arg));
 api.onOpenFile((paths) => paths.forEach((p) => run('open-path', p)));
 api.onCloseRequested(async (e) => {
+  if (OS === 'macos') return closeWindowMac(e);
   if (busy || !(await settleDirty(tabs.list))) return e.preventDefault();
   await writeSession();
 });
+
+/** macOS 关闭窗口（FR-1508）：与关闭全部标签相同，之后隐藏窗口，程序留在程序坞；再次显示时为起始页 */
+async function closeWindowMac(e) {
+  e.preventDefault();
+  if (busy) return;
+  const docs = documentTabs();
+  busy = true;
+  try {
+    if (!(await settleDirty(docs))) return;
+    removeTabs(docs);
+  } finally {
+    busy = false;
+  }
+  await writeSession();
+  await api.hideWindow();
+}
+
+/** macOS 退出（⌘Q、程序坞“退出”）：确认未保存的修改后退出，保留标签会话（FR-811、FR-1508） */
+async function quitApp() {
+  if (busy) return;
+  busy = true;
+  try {
+    if (!(await settleDirty(tabs.list))) return;
+  } finally {
+    busy = false;
+  }
+  await writeSession();
+  await api.quitApp();
+}
 
 (async () => {
   state.settings = await api.getSettings();

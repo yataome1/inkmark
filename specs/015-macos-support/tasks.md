@@ -16,16 +16,16 @@
 - [x] T1506 [US3] `pdf/` 拆分为共用流程 + `windows.rs` + `macos.rs`（按 T1503 结论）
 - [x] T1507 [US1] `lib.rs`：`RunEvent::Opened` / `Reopen` / 退出处理；`hide_main_window`、`quit_app`；`app_ready` 返回 `{ files, os }`；`app_info` 字段平台无关；`install_terminate_hook`（按 T1504 结论）
 - [x] T1508 [US2] `menu.rs`：逻辑快捷键；macOS 应用菜单、窗口菜单，退出、撤销、重做为自定义项；访问键只在 Windows（按 T1502 结论）
-- [ ] T1509 [P] `bundled.rs` 路径比较按平台；Windows 专用测试加 `#[cfg(windows)]`
+- [x] T1509 [P] `bundled.rs` 路径比较按平台；Windows 专用测试加 `#[cfg(windows)]`
 
 ## 阶段 3：前端
 
 - [x] T1510 [P] [US2] `src/platform-keys.js`：逻辑快捷键 → 平台按键串与显示文字、macOS 例外表；`test/platform-keys.test.js`
 - [x] T1511 [US2] `app.js` `KEYMAP` 与 `keydown` 改用逻辑快捷键；`COMMANDS` 增加 `undo`、`redo`；`shortcuts.js`、`edit-menu.js`、`table.js`、`tabs.js`、`contextmenu.js` 的快捷键文字经 `platform-keys` 转换
 - [x] T1512 [US2] `test/shortcuts.test.js`：对 Windows、macOS 各检查三处一致；检查 macOS 不占用系统快捷键
-- [ ] T1513 [P] [US3] `text-utils.js` 路径函数；`app.js`、`render.js`、`tab-utils.js`、`favorites.js`、`image-menu.js` 改用；测试两个平台的用例
-- [ ] T1514 [US1] macOS 关闭窗口流程（关闭全部标签 → 起始页 → 隐藏）与退出流程；`platform.js` 暴露 `hideWindow`、`quitApp`（`os` 已在 T1507 随 `app_ready` 加入）；`quit` 命令改为确认后 `quitApp`（程序坞“退出”也发此命令）
-- [ ] T1515 [P] [US3] ~~`about.js` 显示 macOS / WebKit 版本~~（随 T1507 的 IPC 变更完成）；“在资源管理器中显示”按平台显示为“在访达中显示”
+- [x] T1513 [P] [US3] `text-utils.js` 路径函数；`app.js`、`render.js`、`tab-utils.js`、`favorites.js`、`image-menu.js` 改用；测试两个平台的用例
+- [x] T1514 [US1] macOS 关闭窗口流程（关闭全部标签 → 起始页 → 隐藏）与退出流程；`platform.js` 暴露 `hideWindow`、`quitApp`（`os` 已在 T1507 随 `app_ready` 加入）；`quit` 命令改为确认后 `quitApp`（程序坞“退出”也发此命令）
+- [x] T1515 [P] [US3] ~~`about.js` 显示 macOS / WebKit 版本~~（随 T1507 的 IPC 变更完成）；“在资源管理器中显示”按平台显示为“在访达中显示”
 
 ## 阶段 4：打包与 CI
 

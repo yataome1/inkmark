@@ -145,8 +145,10 @@ macOS 上主窗口在程序运行期间一直存在，关闭只是隐藏，避�
 
 ```
 点红色关闭按钮 / ⌘W 关闭最后一个标签后再 ⌘W
-  → onCloseRequested（前端）：settleDirty（询问保存）→ writeSession
-  → macOS：e.preventDefault()；关闭全部标签、显示起始页；invoke('hide_main_window')
+  → onCloseRequested（前端）
+  → macOS：e.preventDefault()；与“关闭全部标签”相同（settleDirty 询问保存 → 关闭 → 起始页）；
+    invoke('hide_main_window')。关闭窗口即关闭其中的文档，会话随之记为空（与其他 Mac 应用相同）；
+    ⌘Q 退出时则保留会话，下次启动恢复
   → Windows：不变（窗口关闭，程序退出）
 
 ⌘Q / 菜单“退出 Inkmark”
@@ -155,8 +157,9 @@ macOS 上主窗口在程序运行期间一直存在，关闭只是隐藏，避�
 
 程序坞“退出” / 注销 / 关机（系统发 terminate:）
   → sys::macos::install_terminate_hook 在启动时为 tao 的应用代理类补上
-    applicationShouldTerminate:：主窗口可见时返回 NSTerminateCancel 并向前端发 command quit
-    （走上面 ⌘Q 的流程）；窗口已隐藏时返回 NSTerminateNow
+    applicationShouldTerminate:：主窗口未经“关闭”隐藏时返回 NSTerminateCancel，显示窗口并向前端发
+    command quit（走上面 ⌘Q 的流程）；已由 hide_main_window 隐藏时返回 NSTerminateNow。
+    不能以窗口是否可见判断：⌘H 隐藏程序、⌘M 最小化后窗口同样不可见，但文档仍开着
   → 若 T1504 原型证明无法可靠安装：退而在 terminate 前同步保存会话（writeSession 的内容由前端
     在每次变更时推送），未保存的修改仍会丢失，须在使用指南中说明并记录 Issue 等待 tao 支持
 
@@ -222,5 +225,6 @@ win.with_webview(move |wv| unsafe {
 | 为 tao 应用代理补 `applicationShouldTerminate:` 依赖 tao 内部类名，升级 tao 后可能失效 | 运行时检查方法是否已存在，已存在则不覆盖；加启动日志；Tauri 升级时列入 checklist；同时向 tao 提 Issue |
 | 通用 `.dmg` 超过 10MB | CI 检查；超出时改为分别发布 arm64 与 x86_64 两个 `.dmg`（各约 4–5MB），需修改 NFR-1501 |
 | 不签名、不公证导致首次打开被拦截 | spec 已接受；README 与使用指南写明“系统设置 → 隐私与安全性 → 仍要打开”步骤并配图 |
+| macOS 上 `tauri dev` 由内置开发服务器（`http://127.0.0.1:1430`）提供页面，被 `on_navigation` 拦截，页面不加载 | 实现时发现：调试构建中放行该地址；发布构建仍只允许 `tauri://localhost` |
 | 本机无法运行 Windows 的 clippy / test | CI 矩阵覆盖；本地只在 macOS 上运行 |
 | 无 Intel Mac 测试机 | 在 Apple 芯片 Mac 上用 `arch -x86_64` 经 Rosetta 运行通用包中的 x86_64 部分做冒烟测试；能借到 Intel Mac 时补一次完整 checklist，未做时在 checklist 中如实标注 |

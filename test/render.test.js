@@ -39,3 +39,12 @@ test('Anchor.delta: 向上移动为负，四舍五入', () => {
   assert.equal(require('../src/anchor').delta(300, 150.4), -150);
   assert.equal(require('../src/anchor').delta(10, 10), 0);
 });
+
+test('resolveImage: macOS 路径；Windows 盘符路径按找不到处理（specs/015）', () => {
+  assert.deepEqual(resolveImage('assets/a.png', '/Users/a/doc', 'macos'), { path: '/Users/a/doc/assets/a.png' });
+  assert.deepEqual(resolveImage('..\\a%20b.png', '/Users/a/doc', 'macos'), { path: '/Users/a/a b.png' });
+  assert.deepEqual(resolveImage('/Users/a/x.png', null, 'macos'), { path: '/Users/a/x.png' });
+  assert.deepEqual(resolveImage('file:///Users/a%20b.png', null, 'macos'), { path: '/Users/a b.png' });
+  assert.equal(resolveImage('C:\\a.png', '/Users/a', 'macos'), null);
+  assert.equal(resolveImage('file:///C:/a.png', null, 'macos'), null);
+});
