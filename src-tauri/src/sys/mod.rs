@@ -5,7 +5,7 @@
 //! - `put_files(window, paths) -> Result<(), String>`：把文件放入剪贴板
 //!
 //! 仅 macOS：`install_terminate_hook(app)`，程序坞“退出”先交给前端确认（FR-1508）；
-//! `set_main_closed(bool)`，主窗口是否已由“关闭”隐藏
+//! `set_main_closed(bool)`，主窗口是否已由“关闭”隐藏；`paste()`，右键菜单“粘贴”
 
 #[cfg(windows)]
 mod windows;

@@ -137,6 +137,8 @@
     hideWindow: () => invoke('hide_main_window'),
     /** 已完成未保存确认后退出程序 */
     quitApp: () => invoke('quit_app'),
+    /** macOS：右键菜单“粘贴”交给系统，与 ⌘V 相同 */
+    pasteNative: () => invoke('paste_native'),
     onCommand: (cb) => T.event.listen('command', (e) => cb(e.payload)),
     onOpenFile: (cb) => T.event.listen('open-file', (e) => cb(e.payload)),
     /** cb(event)：调用 event.preventDefault() 取消关闭 */

@@ -71,6 +71,15 @@ fn write_files(board: &NSPasteboard, paths: &[&Path]) -> Result<(), String> {
     }
 }
 
+/// 右键菜单“粘贴”：向当前焦点发送系统的 `paste:` 动作，与 ⌘V 相同。
+/// 网页用 navigator.clipboard 读取其他应用复制的内容时，WebKit 会先弹出“粘贴”确认按钮（specs/015 T1521）
+pub fn paste() -> Result<(), String> {
+    let mtm = MainThreadMarker::new().ok_or("须在主线程调用")?;
+    // SAFETY: paste: 是 NSResponder 的标准动作，target 为 nil 时沿响应链发送给当前焦点
+    let ok = unsafe { NSApplication::sharedApplication(mtm).sendAction_to_from(sel!(paste:), None, None) };
+    if ok { Ok(()) } else { Err("无法粘贴".into()) }
+}
+
 // ---------------------------------------------------------------- 程序坞“退出”（FR-1508，research.md R8 T1504）
 
 static APP: OnceLock<AppHandle> = OnceLock::new();

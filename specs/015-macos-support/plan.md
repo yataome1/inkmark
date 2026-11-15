@@ -215,6 +215,7 @@ win.with_webview(move |wv| unsafe {
 | `app_info` | 前端 → Rust | 返回值字段 `webview2`、`windows` 改为 `webviewName`（`WebView2` / `WebKit`）、`webview`（内核版本）、`os`（系统名称与版本）；`about.js` 同步修改，Windows 上显示内容不变 |
 | `hide_main_window` | 前端 → Rust | 新增，仅 macOS 有效：隐藏主窗口 |
 | `quit_app` | 前端 → Rust | 新增：前端完成未保存确认后退出程序 |
+| `paste_native` | 前端 → Rust | 新增（T1521 验收中加入），仅 macOS：右键菜单“粘贴”向当前焦点发送系统 `paste:` 动作，与 ⌘V 相同。网页用 `navigator.clipboard.read()` 读取其他应用复制的内容时，WebKit 会先弹出“粘贴”确认按钮，无法关闭；Windows 仍用 `navigator.clipboard` |
 | `command` 事件 `quit` | Rust → 前端 | 已有；macOS 上由程序坞“退出”触发时也发送 |
 | `open-file` 事件 | Rust → 前端 | 已有；macOS 上来源增加 `RunEvent::Opened` |
 

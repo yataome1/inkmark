@@ -1208,6 +1208,7 @@ async function quitApp() {
     openLink,
     pasteImages: uploadImages,
     onStatus: (text) => ($('#status-flags').textContent = text),
+    nativePaste: OS === 'macos' ? api.pasteNative : undefined,
   });
   if (!(await restoreSession())) {
     const first = startFields();

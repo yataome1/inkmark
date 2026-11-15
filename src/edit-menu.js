@@ -43,9 +43,10 @@
 
   /**
    * @param {{ host: HTMLElement, editor: () => object, readOnly: () => boolean, openLink: (url: string) => void,
-   *   pasteImages: (files: File[]) => void, onStatus: (text: string) => void }} o
+   *   pasteImages: (files: File[]) => void, onStatus: (text: string) => void, nativePaste?: () => Promise<void> }} o
+   *   nativePaste：macOS 上“粘贴”交给系统（与 ⌘V 相同），避免 WebKit 读剪贴板时弹出确认按钮（specs/015）
    */
-  function attach({ host, editor, readOnly, openLink, pasteImages, onStatus }) {
+  function attach({ host, editor, readOnly, openLink, pasteImages, onStatus, nativePaste }) {
     const show = (x, y, items, run) =>
       ContextMenu.show(
         x,
@@ -110,7 +111,7 @@
           redo: () => ed.redo(),
           cut: () => document.execCommand('cut'), // 由编辑器自己的剪贴板处理，与 Ctrl+X 相同
           copy: () => document.execCommand('copy'),
-          paste: () => guarded(pasteIntoEditor),
+          paste: () => guarded(nativePaste || pasteIntoEditor),
           'select-all': () => ed.selectAll(),
         };
         run[cmd]();
@@ -123,6 +124,7 @@
         input.focus();
         if (cmd === 'select-all') return input.select();
         if (cmd !== 'paste') return document.execCommand(cmd);
+        if (nativePaste) return guarded(nativePaste);
         guarded(async () => {
           input.setRangeText(await navigator.clipboard.readText(), input.selectionStart, input.selectionEnd, 'end');
           input.dispatchEvent(new Event('input', { bubbles: true }));

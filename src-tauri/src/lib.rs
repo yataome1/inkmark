@@ -151,6 +151,15 @@ fn hide_main_window(window: tauri::WebviewWindow) -> CmdResult<()> {
     window.hide().map_err(err)
 }
 
+/// macOS 右键菜单“粘贴”：与 ⌘V 相同，不弹出 WebKit 的确认按钮（specs/015）。同步命令在主线程执行
+#[tauri::command]
+fn paste_native() -> CmdResult<()> {
+    #[cfg(target_os = "macos")]
+    return sys::paste();
+    #[cfg(not(target_os = "macos"))]
+    Err("仅 macOS 使用".into())
+}
+
 /// 前端完成未保存确认后退出程序（FR-1508，宪章 IV）
 #[tauri::command]
 fn quit_app(app: AppHandle) {
@@ -597,6 +606,7 @@ pub fn run() {
             export_pdf,
             hide_main_window,
             quit_app,
+            paste_native,
         ])
         .on_menu_event(|app, e| on_menu(app, e.id().as_ref()))
         .setup(|app| {
