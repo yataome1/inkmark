@@ -6,14 +6,14 @@ body:
     id: version
     attributes:
       label: Inkmark 版本
-      description: 帮助 → 关于 Inkmark
+      description: 帮助 → 关于 Inkmark（macOS：Inkmark → 关于 Inkmark）
     validations:
       required: true
   - type: input
     id: os
     attributes:
-      label: Windows 版本
-      placeholder: Windows 11 23H2
+      label: 系统版本
+      placeholder: Windows 11 23H2 / macOS 15.1
   - type: textarea
     id: steps
     attributes:

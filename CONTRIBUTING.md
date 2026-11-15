@@ -7,10 +7,20 @@
 
 ## 开发环境
 
+通用：Node.js ≥ 20（推荐 24）、npm ≥ 10、Git；Rust stable，含 `clippy` 与 `rustfmt`：`rustup component add clippy rustfmt`。
+
+Windows：
+
 - Windows 10/11 x64，已安装 WebView2 运行时（Windows 11 自带）
-- Node.js ≥ 20（推荐 24）、npm ≥ 10、Git
-- Rust stable（MSVC 工具链），含 `clippy` 与 `rustfmt`：`rustup component add clippy rustfmt`
+- Rust 使用 MSVC 工具链
 - Visual Studio 2022 生成工具（“使用 C++ 的桌面开发”，含 Windows SDK）
+
+macOS（specs/015）：
+
+- macOS 12 及以上，Xcode 命令行工具：`xcode-select --install`
+- 构建通用包需要两个目标：`rustup target add aarch64-apple-darwin x86_64-apple-darwin`
+
+两个平台的代码在同一个仓库中：平台差异在 Rust 的 `sys/`、`pdf/` 平台模块与 `#[cfg(...)]` 中，前端只在 `src/platform-keys.js`（快捷键）与 `src/text-utils.js`（路径）中区分平台。在一个平台上开发时，另一个平台的 Rust 代码不会被编译，由 CI 检查。
 
 ```bash
 git clone https://github.com/yataome1/inkmark.git
@@ -31,9 +41,10 @@ npm start
 | `npm run format` | 自动格式化前端代码 |
 | `cd src-tauri && cargo test` | Rust 单元测试 |
 | `cd src-tauri && cargo fmt && cargo clippy --all-targets -- -D warnings` | Rust 格式化与检查 |
-| `npm run dist` | 构建发布版：安装包在 `src-tauri/target/release/bundle/nsis/`，免安装版为 `src-tauri/target/release/inkmark.exe` |
+| `npm run dist` | Windows 发布版：安装包在 `src-tauri/target/release/bundle/nsis/`，免安装版为 `src-tauri/target/release/inkmark.exe` |
+| `npm run dist:mac` | macOS 通用发布版：`src-tauri/target/universal-apple-darwin/release/bundle/dmg/` |
 
-调试前端：开发模式下在窗口中右键 → **检查**，打开 WebView2 开发者工具。
+调试前端：开发模式下在窗口中右键 → **检查**，打开 WebView2（Windows）或 Web 检查器（macOS）。
 
 ## 提交新功能
 
@@ -52,6 +63,6 @@ npm start
 
 ## 报告问题
 
-使用 Issue 模板，提供 Inkmark 版本、Windows 版本、复现步骤，最好附上能复现问题的最小 Markdown 文件。
+使用 Issue 模板，提供 Inkmark 版本、系统版本（Windows 或 macOS）、复现步骤，最好附上能复现问题的最小 Markdown 文件。
 
 安全问题请参考 [SECURITY.md](SECURITY.md)，不要公开提交。

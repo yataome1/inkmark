@@ -2,7 +2,7 @@
 
 <h1 align="center">Inkmark</h1>
 
-<p align="center">本地 Markdown 查看与编辑器 · Windows 10 / 11 x64</p>
+<p align="center">本地 Markdown 查看与编辑器 · Windows 10 / 11 x64 · macOS 12+</p>
 
 <p align="center">
   <a href="https://github.com/yataome1/inkmark/actions/workflows/ci.yml"><img src="https://github.com/yataome1/inkmark/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -15,7 +15,7 @@
 
 - **即时渲染**：输入即排版，光标所在处显示 Markdown 标记；`Ctrl+/` 切换源代码模式
 - **完整语法**：GFM 表格、任务列表、删除线、脚注、`[TOC]`、==高亮==、KaTeX 数学公式、Mermaid 图表、代码高亮
-- **小巧**：安装包小于 10MB，使用系统自带的 WebView2 内核
+- **小巧**：安装包小于 10MB，使用系统自带的网页内核（Windows 为 WebView2，macOS 为 WebKit）
 - **完全离线**：所有渲染资源随应用分发，无网络请求、无遥测
 - **多标签**：同时打开多个文件，拖动排序、右键菜单、全部保存，启动时恢复上次的标签；没有文档时显示起始页
 - **表格**：尺寸选择、工具条、右键菜单、快捷键、拖动行列
@@ -34,17 +34,23 @@
 
 - `Inkmark-Setup-x.y.z-x64.exe` —— 安装版（注册 `.md` 文件关联）
 - `Inkmark-x.y.z-x64-portable.exe` —— 免安装版，单个文件，双击即用
+- `Inkmark-x.y.z-universal.dmg` —— macOS 版，Apple 芯片与 Intel 芯片通用
 
-系统要求：
+Windows 系统要求：
 
 - Windows 10、Windows 11 的 64 位版本（目前在 Windows 11 上测试）；不支持 Windows 7、8 和 32 位系统
 - WebView2 运行时：Windows 11 已内置，Windows 10 通常已随 Edge 安装；没有时安装版会自动引导下载
 
 > 安装包未做代码签名，首次运行时 Windows SmartScreen 可能提示“未知发布者”，选择“仍要运行”即可。
 
+macOS：
+
+- macOS 12 Monterey 及以上；打开 `.dmg`，把 Inkmark 拖到“应用程序”
+- 未做 Apple 签名与公证，首次打开会提示无法验证开发者：先关闭提示，再到“系统设置”的“隐私与安全性”中点“仍要打开”。macOS 12–14 也可以按住 Control 键单击 Inkmark，选择“打开”。之后不再提示
+
 ## 快捷键
 
-常用快捷键如下，按 `F1` 可在软件中查看全部快捷键。
+常用快捷键如下，按 `F1` 可在软件中查看全部快捷键。macOS 上把 `Ctrl` 换成 `⌘`（替换为 `⌥⌘F`，快捷键列表为 `⇧⌘/`，其余不同之处见内置使用指南）。
 
 | 操作 | 快捷键 |
 |---|---|
@@ -56,13 +62,14 @@
 
 ## 从源码构建
 
-需要 Node.js、Rust（MSVC）与 Visual Studio C++ 生成工具，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+需要 Node.js 与 Rust；Windows 还需要 Visual Studio C++ 生成工具，macOS 需要 Xcode 命令行工具。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ```bash
 npm install
 npm start        # 开发运行
 npm test         # 单元测试
-npm run dist     # 构建安装包与免安装版
+npm run dist     # Windows：构建安装包与免安装版
+npm run dist:mac # macOS：构建通用 .dmg
 ```
 
 ## 项目结构
